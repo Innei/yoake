@@ -92,8 +92,8 @@ export function App() {
         <p className="max-w-md text-sm text-text/70">{status.cause.message}</p>
         {isWebGpu ? (
           <p className="max-w-md text-xs text-text/50">
-            Open this tool in macOS Chrome with WebGPU enabled. Check
-            chrome://gpu to confirm hardware acceleration is on.
+            Open this tool in macOS Chrome with WebGPU enabled. Check chrome://gpu to confirm
+            hardware acceleration is on.
           </p>
         ) : null}
       </main>
@@ -112,9 +112,7 @@ export function App() {
 function subscribePersistence(): void {
   useClipsStore.subscribe((state, prev) => {
     if (state.selectedClipId === prev.selectedClipId) return;
-    const patch: Partial<LastSession> = {};
-    if (state.selectedClipId !== undefined) patch.clipId = state.selectedClipId;
-    void usePrefsStore.getState().updateLastSession(patch);
+    void usePrefsStore.getState().updateLastSession({ clipId: state.selectedClipId });
   });
   useEditStore.subscribe((state, prev) => {
     const changed =
@@ -180,10 +178,9 @@ async function restoreLastSession(): Promise<void> {
       if (!match) return;
       const text = await readLut(match.fileHandle);
       const parsed = parseCubeLut(text);
-      useEditStore.getState().setLut(
-        { id: match.id, name: match.name, handle: match.fileHandle },
-        parsed,
-      );
+      useEditStore
+        .getState()
+        .setLut({ id: match.id, name: match.name, handle: match.fileHandle }, parsed);
     } catch {
       /* fall through */
     }

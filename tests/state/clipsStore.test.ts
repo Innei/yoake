@@ -40,6 +40,36 @@ describe('clipsStore', () => {
     expect(useClipsStore.getState().selectedClipId).toBe('clip-1');
   });
 
+  it('removeClip removes an unselected clip without changing selection', () => {
+    const store = useClipsStore.getState();
+    store.setClips([makeClip('a'), makeClip('b'), makeClip('c')]);
+    store.select('a');
+    store.removeClip('b');
+    const state = useClipsStore.getState();
+    expect(state.clips.map((clip) => clip.id)).toEqual(['a', 'c']);
+    expect(state.selectedClipId).toBe('a');
+  });
+
+  it('removeClip selects the next clip when deleting the selected clip', () => {
+    const store = useClipsStore.getState();
+    store.setClips([makeClip('a'), makeClip('b'), makeClip('c')]);
+    store.select('b');
+    store.removeClip('b');
+    const state = useClipsStore.getState();
+    expect(state.clips.map((clip) => clip.id)).toEqual(['a', 'c']);
+    expect(state.selectedClipId).toBe('c');
+  });
+
+  it('removeClip clears selection when deleting the only clip', () => {
+    const store = useClipsStore.getState();
+    store.setClips([makeClip('a')]);
+    store.select('a');
+    store.removeClip('a');
+    const state = useClipsStore.getState();
+    expect(state.clips).toEqual([]);
+    expect(state.selectedClipId).toBeUndefined();
+  });
+
   it('clear resets directory, clips, and selection', () => {
     const store = useClipsStore.getState();
     store.setDirectory({} as FileSystemDirectoryHandle);

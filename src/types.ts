@@ -31,8 +31,8 @@ export interface HdrSettings {
 }
 
 export interface LastSession {
-  clipId?: string;
+  clipId?: string | undefined;
   grading: GradingParams;
   hdr: HdrSettings;
-  lutId?: string;
+  lutId?: string | undefined;
 }
