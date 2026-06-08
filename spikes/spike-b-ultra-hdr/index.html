@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spike B — Ultra HDR JPEG compatibility</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #111;
+        color: #ddd;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        gap: 16px;
+        min-height: 100vh;
+        box-sizing: border-box;
+      }
+      h1 {
+        font-size: 16px;
+        margin: 0 0 12px;
+      }
+      h2 {
+        font-size: 13px;
+        margin: 16px 0 6px;
+        color: #9cf;
+        font-weight: 600;
+      }
+      .left {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-width: 0;
+      }
+      .right {
+        background: #1a1a1a;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 12px;
+        line-height: 1.5;
+        overflow: auto;
+        max-height: calc(100vh - 32px);
+      }
+      .stills {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      .still {
+        background: #1a1a1a;
+        border-radius: 8px;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .still header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .still h3 {
+        font-size: 13px;
+        margin: 0;
+        color: #fcc;
+      }
+      .still p {
+        font-size: 11px;
+        color: #aaa;
+        margin: 0;
+      }
+      canvas {
+        max-width: 100%;
+        background: #000;
+        border-radius: 4px;
+        image-rendering: pixelated;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      button {
+        background: #222;
+        color: #ddd;
+        border: 1px solid #444;
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #2a2a2a;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .badge {
+        display: inline-block;
+        background: #233;
+        color: #9cf;
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 3px;
+        margin-left: 6px;
+      }
+      .meta {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        color: #888;
+        white-space: pre-wrap;
+        background: #0a0a0a;
+        padding: 6px;
+        border-radius: 4px;
+        max-height: 110px;
+        overflow: auto;
+      }
+      .log {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 10px;
+        color: #888;
+        max-height: 240px;
+        overflow: auto;
+        background: #0a0a0a;
+        padding: 6px;
+        border-radius: 4px;
+        white-space: pre-wrap;
+      }
+      .status {
+        padding: 8px;
+        border-radius: 4px;
+        font-weight: 600;
+      }
+      .status.ok {
+        background: #143;
+        color: #9f9;
+      }
+      .status.err {
+        background: #411;
+        color: #f99;
+      }
+      .status.warn {
+        background: #432;
+        color: #fc9;
+      }
+      .status.neutral {
+        background: #222;
+        color: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="left">
+      <h1>Spike B — Ultra HDR JPEG ecosystem compatibility</h1>
+      <p style="font-size: 12px; color: #aaa; margin: 0">
+        Encoder: <code>open-ultrahdr</code> (ISO 21496-1, libultrahdr WASM). Click
+        <strong>Encode</strong> on a card to generate its Ultra HDR JPEG, then download and open in
+        macOS Photos, iOS Photos, Google Photos web, and Chrome direct file open. See
+        <code>README.md</code> for the manual verification checklist.
+      </p>
+
+      <div class="actions">
+        <button id="encode-all">Encode all three</button>
+        <button id="download-all" disabled>Download all encoded files</button>
+      </div>
+
+      <div class="stills">
+        <section class="still" data-id="clipped-sky">
+          <header>
+            <h3>1. Clipped sky highlight<span class="badge">heavy headroom</span></h3>
+          </header>
+          <p>Wide blue sky with a clipped sun disc that must bloom on HDR viewers.</p>
+          <canvas id="canvas-clipped-sky" width="640" height="360"></canvas>
+          <div class="actions">
+            <button class="encode-btn" data-id="clipped-sky">Encode Ultra HDR</button>
+            <button class="download-btn" data-id="clipped-sky" disabled>Download .jpg</button>
+            <button class="download-sdr-btn" data-id="clipped-sky">Download SDR-only .jpg</button>
+          </div>
+          <div class="meta" id="meta-clipped-sky">not encoded yet</div>
+        </section>
+
+        <section class="still" data-id="specular">
+          <header>
+            <h3>2. Specular reflection<span class="badge">localized bloom</span></h3>
+          </header>
+          <p>Mostly midtone scene with a small, very bright specular pinpoint.</p>
+          <canvas id="canvas-specular" width="640" height="360"></canvas>
+          <div class="actions">
+            <button class="encode-btn" data-id="specular">Encode Ultra HDR</button>
+            <button class="download-btn" data-id="specular" disabled>Download .jpg</button>
+            <button class="download-sdr-btn" data-id="specular">Download SDR-only .jpg</button>
+          </div>
+          <div class="meta" id="meta-specular">not encoded yet</div>
+        </section>
+
+        <section class="still" data-id="flat-midtone">
+          <header>
+            <h3>3. Flat midtone<span class="badge">no headroom</span></h3>
+          </header>
+          <p>Uniform midtone gradient with no highlights — must look identical to SDR.</p>
+          <canvas id="canvas-flat-midtone" width="640" height="360"></canvas>
+          <div class="actions">
+            <button class="encode-btn" data-id="flat-midtone">Encode Ultra HDR</button>
+            <button class="download-btn" data-id="flat-midtone" disabled>Download .jpg</button>
+            <button class="download-sdr-btn" data-id="flat-midtone">
+              Download SDR-only .jpg
+            </button>
+          </div>
+          <div class="meta" id="meta-flat-midtone">not encoded yet</div>
+        </section>
+      </div>
+    </div>
+
+    <div class="right">
+      <h2>Encoder status</h2>
+      <div id="status" class="status neutral">awaiting first encode</div>
+
+      <h2>Verification checklist</h2>
+      <ol style="font-size: 11px; padding-left: 18px; color: #ccc">
+        <li>Download each generated <code>.jpg</code> above.</li>
+        <li>
+          Open in <strong>macOS Photos</strong> (Sonoma+) on an HDR display — highlights should
+          bloom past SDR white on the sky and specular stills; flat midtone must look identical to
+          the SDR-only download.
+        </li>
+        <li>
+          AirDrop to a recent iPhone, open in <strong>iOS Photos</strong> — same bloom expectation.
+        </li>
+        <li>
+          Upload to <strong>Google Photos web</strong> in Chrome on the same HDR Mac — same bloom
+          expectation.
+        </li>
+        <li>
+          <strong>Chrome direct file open</strong> (drag onto a tab) — same bloom on an HDR
+          display.
+        </li>
+        <li>
+          Run <code>exiftool -G1 -a -s file.jpg</code> and confirm the gain map MPF segment, the
+          XMP <code>hdrgm:</code> block, and the ISO 21496-1 APP2 marker are present.
+        </li>
+      </ol>
+
+      <h2>Pass criteria</h2>
+      <ul style="font-size: 11px; padding-left: 18px; color: #ccc">
+        <li>All four viewers display bloom on the sky and specular stills.</li>
+        <li>All four viewers render the flat midtone identically to its SDR-only twin.</li>
+        <li>exiftool reports MPF + XMP hdrgm + ISO 21496-1 markers with no warnings.</li>
+      </ul>
+
+      <h2>Log</h2>
+      <div id="log" class="log"></div>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

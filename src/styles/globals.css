@@ -1,0 +1,15 @@
+@import 'tailwindcss';
+@import '@pastel-palette/tailwindcss/dist/theme-oklch.css';
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+@layer base {
+  html,
+  body {
+    @apply min-h-dvh antialiased;
+  }
+
+  body {
+    @apply bg-background text-text;
+  }
+}
