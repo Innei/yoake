@@ -55,7 +55,7 @@ describe('Shell', () => {
   it('renders the ViewLeftPanel content in view mode', () => {
     const { getByTestId, queryByTestId } = render(<Shell />);
     expect(getByTestId('clip-list-mock')).toBeTruthy();
-    expect(getByTestId('view-edit-button-slot')).toBeTruthy();
+    expect(getByTestId('edit-toggle-edit')).toBeTruthy();
     expect(queryByTestId('edit-left-placeholder')).toBeNull();
   });
 
