@@ -17,6 +17,8 @@ import { useClipsStore } from '~/state/clipsStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
 
+import { createGradeActions } from './clipGradeActions';
+
 export type ClipEntryStatus = 'idle' | 'loading' | 'writing' | 'error';
 
 export interface ClipEntry {
@@ -474,85 +476,7 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
   setSegmentFreezeDuration: (clipId, segId, secs) => {
     get().updateSegment(clipId, segId, { freezeDurationSec: secs });
   },
-  setBaseGrade: (clipId, patch) => {
-    let changed = false;
-    set((state) => {
-      const prev = state.entries[clipId] ?? emptyEntry();
-      const baseGrade = { ...prev.baseGrade, ...patch };
-      changed = true;
-      return {
-        entries: {
-          ...state.entries,
-          [clipId]: { ...prev, baseGrade },
-        },
-      };
-    });
-    if (!changed) return;
-    const entry = get().entries[clipId];
-    if (entry && !entry.readOnly) enqueueWrite(clipId);
-  },
-  setSegmentGradeOverride: (clipId, segId, patch) => {
-    let applied = false;
-    set((state) => {
-      const prev = state.entries[clipId];
-      if (!prev) return {};
-      const index = prev.segments.findIndex((s) => s.id === segId);
-      if (index === -1) return {};
-      const existing = prev.segments[index]!;
-      const next: Segment = {
-        ...existing,
-        gradeOverride: { ...existing.gradeOverride, ...patch },
-      };
-      applied = true;
-      return {
-        entries: {
-          ...state.entries,
-          [clipId]: {
-            ...prev,
-            segments: [
-              ...prev.segments.slice(0, index),
-              next,
-              ...prev.segments.slice(index + 1),
-            ],
-          },
-        },
-      };
-    });
-    if (!applied) return;
-    const entry = get().entries[clipId];
-    if (entry && !entry.readOnly) enqueueWrite(clipId);
-  },
-  clearSegmentGradeOverride: (clipId, segId) => {
-    let applied = false;
-    set((state) => {
-      const prev = state.entries[clipId];
-      if (!prev) return {};
-      const index = prev.segments.findIndex((s) => s.id === segId);
-      if (index === -1) return {};
-      const existing = prev.segments[index]!;
-      if (existing.gradeOverride === undefined) return {};
-      const { gradeOverride: _drop, ...rest } = existing;
-      void _drop;
-      const next: Segment = rest;
-      applied = true;
-      return {
-        entries: {
-          ...state.entries,
-          [clipId]: {
-            ...prev,
-            segments: [
-              ...prev.segments.slice(0, index),
-              next,
-              ...prev.segments.slice(index + 1),
-            ],
-          },
-        },
-      };
-    });
-    if (!applied) return;
-    const entry = get().entries[clipId];
-    if (entry && !entry.readOnly) enqueueWrite(clipId);
-  },
+  ...createGradeActions({ set, get, emptyEntry, enqueueWrite }),
   hasPendingWrites: () => pendingWriteCount > 0,
 }));
 
