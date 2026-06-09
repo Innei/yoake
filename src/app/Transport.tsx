@@ -23,6 +23,7 @@ import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import { MarkerLayer } from './transport/MarkerLayer';
 import { SegmentLayer } from './transport/SegmentLayer';
+import { ViewSettingsPopover } from './transport/ViewSettingsPopover';
 
 const FALLBACK_FPS = 30;
 
@@ -201,6 +202,7 @@ export function Transport() {
         >
           <Scissors aria-hidden className="size-3.5" />
         </button>
+        <ViewSettingsPopover />
       </div>
 
       <div className="flex h-full min-w-0 flex-1 flex-col justify-center">
