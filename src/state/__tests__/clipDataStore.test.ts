@@ -8,6 +8,8 @@ import { toast } from '~/state/toastStore';
 
 import {
   __resetClipDataStoreCachesForTests,
+  effectiveGrade,
+  findSegmentAtTime,
   useClipDataStore,
 } from '../clipDataStore';
 
@@ -615,5 +617,192 @@ describe('clipDataStore segment convenience setters', () => {
     const entry = useClipDataStore.getState().entries['clip-1']!;
     expect(entry.segments[0]!.freezeDurationSec).toBe(1.5);
     expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clipDataStore.setBaseGrade', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('merges patch into baseGrade and writes the sidecar', async () => {
+    useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 0.5 });
+    await flush();
+    let entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.baseGrade).toEqual({ exposure: 0.5 });
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+
+    useClipDataStore.getState().setBaseGrade('clip-1', { lutId: 'rec709' });
+    await flush();
+    entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.baseGrade).toEqual({ exposure: 0.5, lutId: 'rec709' });
+  });
+
+  it('creates an entry when none exists', async () => {
+    useClipDataStore.setState({ entries: {} });
+    useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 1 });
+    const entry = useClipDataStore.getState().entries['clip-1'];
+    expect(entry).toBeDefined();
+    expect(entry!.baseGrade).toEqual({ exposure: 1 });
+  });
+
+  it('does not write when entry is readOnly', async () => {
+    mockedRead.mockRejectedValueOnce(new Error('boom'));
+    await useClipDataStore.getState().load('clip-1');
+    mockedWrite.mockClear();
+    useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 0.5 });
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('clipDataStore.setSegmentGradeOverride', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('creates an override when absent and merges subsequent patches', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flushWrites();
+    mockedWrite.mockClear();
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', id, { exposure: 0.25 });
+    await flush();
+    let entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.gradeOverride).toEqual({ exposure: 0.25 });
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', id, { lutId: 'cust' });
+    await flush();
+    entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.gradeOverride).toEqual({
+      exposure: 0.25,
+      lutId: 'cust',
+    });
+  });
+
+  it('does not touch baseGrade', async () => {
+    useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 0.1 });
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flushWrites();
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', id, { exposure: 0.9 });
+    await flushWrites();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.baseGrade.exposure).toBe(0.1);
+    expect(entry.segments[0]!.gradeOverride!.exposure).toBe(0.9);
+  });
+
+  it('is a no-op when segment is missing', () => {
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', 'ghost', { exposure: 1 });
+    const entry = useClipDataStore.getState().entries['clip-1'];
+    expect(entry?.segments ?? []).toEqual([]);
+  });
+});
+
+describe('clipDataStore.clearSegmentGradeOverride', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('removes the override property from the segment', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', id, { exposure: 0.5 });
+    await flushWrites();
+    mockedWrite.mockClear();
+    useClipDataStore.getState().clearSegmentGradeOverride('clip-1', id);
+    await flush();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.gradeOverride).toBeUndefined();
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('is a no-op when there is no override', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flushWrites();
+    mockedWrite.mockClear();
+    useClipDataStore.getState().clearSegmentGradeOverride('clip-1', id);
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('findSegmentAtTime / effectiveGrade', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('findSegmentAtTime returns the segment containing the time', () => {
+    const a = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    useClipDataStore.getState().addSegment('clip-1', 5, 10);
+    expect(findSegmentAtTime('clip-1', 2)?.id).toBe(a);
+    expect(findSegmentAtTime('clip-1', 4.5)).toBeUndefined();
+  });
+
+  it('effectiveGrade returns baseGrade when no segment override', async () => {
+    useClipDataStore
+      .getState()
+      .setBaseGrade('clip-1', { exposure: 0.3, lutId: 'a' });
+    useClipDataStore.getState().addSegment('clip-1', 0, 4);
+    await flushWrites();
+    expect(effectiveGrade('clip-1', 2)).toEqual({
+      exposure: 0.3,
+      lutId: 'a',
+    });
+  });
+
+  it('effectiveGrade merges segment override on top of baseGrade', async () => {
+    useClipDataStore
+      .getState()
+      .setBaseGrade('clip-1', { exposure: 0.3, lutId: 'a' });
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', id, { exposure: 0.9 });
+    await flushWrites();
+    expect(effectiveGrade('clip-1', 2)).toEqual({
+      exposure: 0.9,
+      lutId: 'a',
+    });
+  });
+
+  it('effectiveGrade returns baseGrade when time is outside any segment', async () => {
+    useClipDataStore
+      .getState()
+      .setBaseGrade('clip-1', { exposure: 0.3 });
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    useClipDataStore
+      .getState()
+      .setSegmentGradeOverride('clip-1', id, { exposure: 0.9 });
+    await flushWrites();
+    expect(effectiveGrade('clip-1', 10)).toEqual({ exposure: 0.3 });
   });
 });

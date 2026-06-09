@@ -44,16 +44,23 @@ interface ClipDataState {
     outSec: number,
     opts?: AddSegmentOptions,
   ) => string | undefined;
+  clearSegmentGradeOverride: (clipId: string, segId: string) => void;
   entries: Record<string, ClipEntry>;
   hasPendingWrites: () => boolean;
   load: (clipId: string) => Promise<void>;
   markReadOnly: (clipId: string, readOnly: boolean) => void;
   removeMarker: (clipId: string, id: string) => void;
   removeSegment: (clipId: string, segId: string) => void;
+  setBaseGrade: (clipId: string, patch: Partial<GradeState>) => void;
   setSegmentFreezeDuration: (
     clipId: string,
     segId: string,
     secs: number,
+  ) => void;
+  setSegmentGradeOverride: (
+    clipId: string,
+    segId: string,
+    patch: Partial<GradeState>,
   ) => void;
   setSegmentPlayMode: (
     clipId: string,
@@ -467,5 +474,102 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
   setSegmentFreezeDuration: (clipId, segId, secs) => {
     get().updateSegment(clipId, segId, { freezeDurationSec: secs });
   },
+  setBaseGrade: (clipId, patch) => {
+    let changed = false;
+    set((state) => {
+      const prev = state.entries[clipId] ?? emptyEntry();
+      const baseGrade = { ...prev.baseGrade, ...patch };
+      changed = true;
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: { ...prev, baseGrade },
+        },
+      };
+    });
+    if (!changed) return;
+    const entry = get().entries[clipId];
+    if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
+  setSegmentGradeOverride: (clipId, segId, patch) => {
+    let applied = false;
+    set((state) => {
+      const prev = state.entries[clipId];
+      if (!prev) return {};
+      const index = prev.segments.findIndex((s) => s.id === segId);
+      if (index === -1) return {};
+      const existing = prev.segments[index]!;
+      const next: Segment = {
+        ...existing,
+        gradeOverride: { ...existing.gradeOverride, ...patch },
+      };
+      applied = true;
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: {
+            ...prev,
+            segments: [
+              ...prev.segments.slice(0, index),
+              next,
+              ...prev.segments.slice(index + 1),
+            ],
+          },
+        },
+      };
+    });
+    if (!applied) return;
+    const entry = get().entries[clipId];
+    if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
+  clearSegmentGradeOverride: (clipId, segId) => {
+    let applied = false;
+    set((state) => {
+      const prev = state.entries[clipId];
+      if (!prev) return {};
+      const index = prev.segments.findIndex((s) => s.id === segId);
+      if (index === -1) return {};
+      const existing = prev.segments[index]!;
+      if (existing.gradeOverride === undefined) return {};
+      const { gradeOverride: _drop, ...rest } = existing;
+      void _drop;
+      const next: Segment = rest;
+      applied = true;
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: {
+            ...prev,
+            segments: [
+              ...prev.segments.slice(0, index),
+              next,
+              ...prev.segments.slice(index + 1),
+            ],
+          },
+        },
+      };
+    });
+    if (!applied) return;
+    const entry = get().entries[clipId];
+    if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
   hasPendingWrites: () => pendingWriteCount > 0,
 }));
+
+export function findSegmentAtTime(
+  clipId: string,
+  time: number,
+): Segment | undefined {
+  const entry = useClipDataStore.getState().entries[clipId];
+  if (!entry) return undefined;
+  return entry.segments.find((s) => time >= s.in && time < s.out);
+}
+
+export function effectiveGrade(clipId: string, time: number): GradeState {
+  const entry = useClipDataStore.getState().entries[clipId];
+  if (!entry) return {};
+  const base = entry.baseGrade;
+  const segment = entry.segments.find((s) => time >= s.in && time < s.out);
+  if (!segment || segment.gradeOverride === undefined) return base;
+  return { ...base, ...segment.gradeOverride };
+}
