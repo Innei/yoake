@@ -157,4 +157,116 @@ describe('EditOutline', () => {
 
     loadSpy.mockRestore();
   });
+
+  it('renders segments section with count', () => {
+    useClipsStore.setState({
+      clips: [makeClip('clip-1', 'A.MP4')],
+      selectedClipId: 'clip-1',
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [],
+          segments: [
+            { id: 's1', in: 1, out: 2, playMode: 'normal', speed: 1 },
+            { id: 's2', in: 3, out: 5, playMode: 'reverse', speed: 1 },
+          ],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: false,
+        },
+      },
+    });
+    vi.spyOn(useClipDataStore.getState(), 'load').mockResolvedValue(undefined);
+
+    const { getByTestId } = render(<EditOutline />);
+    const section = getByTestId('outline-segments-section');
+    expect(section.textContent).toContain('Segments');
+    expect(section.textContent).toContain('2');
+    expect(getByTestId('segment-row-s1')).toBeTruthy();
+    expect(getByTestId('segment-row-s2')).toBeTruthy();
+  });
+
+  it('clicking a segment row calls selectSegment', () => {
+    useClipsStore.setState({
+      clips: [makeClip('clip-1', 'A.MP4')],
+      selectedClipId: 'clip-1',
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [],
+          segments: [
+            { id: 's1', in: 1, out: 2, playMode: 'normal', speed: 1 },
+          ],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: false,
+        },
+      },
+    });
+    vi.spyOn(useClipDataStore.getState(), 'load').mockResolvedValue(undefined);
+    const spy = vi.spyOn(useEditModeStore.getState(), 'selectSegment');
+
+    const { getByTestId } = render(<EditOutline />);
+    fireEvent.click(getByTestId('segment-row-s1'));
+    expect(spy).toHaveBeenCalledWith('s1');
+
+    spy.mockRestore();
+  });
+
+  it('renders empty-state message when both segments and markers are empty', () => {
+    useClipsStore.setState({
+      clips: [makeClip('clip-1', 'A.MP4')],
+      selectedClipId: 'clip-1',
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [],
+          segments: [],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: false,
+        },
+      },
+    });
+    vi.spyOn(useClipDataStore.getState(), 'load').mockResolvedValue(undefined);
+
+    const { getByTestId } = render(<EditOutline />);
+    expect(getByTestId('edit-outline-empty-all').textContent).toContain(
+      'No edits yet',
+    );
+  });
+
+  it('toggles section collapse on header click', () => {
+    useClipsStore.setState({
+      clips: [makeClip('clip-1', 'A.MP4')],
+      selectedClipId: 'clip-1',
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [{ id: 'm1', time: 1, label: 'x' }],
+          segments: [
+            { id: 's1', in: 1, out: 2, playMode: 'normal', speed: 1 },
+          ],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: false,
+        },
+      },
+    });
+    vi.spyOn(useClipDataStore.getState(), 'load').mockResolvedValue(undefined);
+
+    const { getByTestId, queryByTestId } = render(<EditOutline />);
+    expect(getByTestId('segment-row-s1')).toBeTruthy();
+
+    fireEvent.click(getByTestId('outline-segments-toggle'));
+    expect(queryByTestId('segment-row-s1')).toBeNull();
+
+    expect(getByTestId('marker-row-m1')).toBeTruthy();
+    fireEvent.click(getByTestId('outline-markers-toggle'));
+    expect(queryByTestId('marker-row-m1')).toBeNull();
+  });
 });

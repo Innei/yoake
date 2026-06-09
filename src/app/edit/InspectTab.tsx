@@ -7,6 +7,7 @@ import { useEditStore } from '~/state/editStore';
 
 import { ClipOverview } from './ClipOverview';
 import { MarkerContextPanel } from './MarkerContextPanel';
+import { SegmentInspector } from './SegmentInspector';
 
 export function InspectTab() {
   const outlineSelection = useEditModeStore((s) => s.outlineSelection);
@@ -40,11 +41,7 @@ export function InspectTab() {
     return <MarkerContextPanel id={outlineSelection.id} />;
   }
   if (outlineSelection.kind === 'segment') {
-    return (
-      <div className="p-3 text-xs text-text-secondary" data-testid="segment-inspector-stub">
-        SegmentInspector — implemented in T4
-      </div>
-    );
+    return <SegmentInspector />;
   }
   return <ClipOverview />;
 }
