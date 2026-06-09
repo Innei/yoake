@@ -28,8 +28,9 @@ import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import {
   pushExposureToGpu,
-  useEffectiveGradePush,
-} from './previewGradeUniforms';
+  useEffectiveExposure,
+  useEffectiveExposurePush,
+} from './previewExposureUniform';
 import {
   type GpuResources,
   type IntermediateTextures,
@@ -61,7 +62,7 @@ export function Preview() {
 
   const parsedLut = useEditStore((s) => s.parsedLut);
   const lutDescriptor = useEditStore((s) => s.lutDescriptor);
-  const exposure = useEditStore((s) => s.grading.exposure);
+  const effectiveExposure = useEffectiveExposure();
   const peakNits = useEditStore((s) => s.hdr.peakNits);
   const hdrStrength = useEditStore((s) => s.hdr.strength);
   const renderMode = useEditStore((s) => s.renderMode);
@@ -235,7 +236,7 @@ export function Preview() {
     [requestRepaint],
   );
 
-  useEffectiveGradePush({ enabled: gpuReady, pushExposure });
+  useEffectiveExposurePush({ enabled: gpuReady, pushExposure });
 
   useEffect(() => {
     const gpu = gpuRef.current;
@@ -516,8 +517,10 @@ export function Preview() {
               {hdrActive ? `HDR ${peakNits}` : 'SDR'}
             </HudChip>
             <HudChip>
-              EV {exposure >= 0 ? '+' : ''}
-              {exposure.toFixed(1)}
+              <span data-testid="hud-ev-value">
+                EV {effectiveExposure >= 0 ? '+' : ''}
+                {effectiveExposure.toFixed(1)}
+              </span>
             </HudChip>
           </div>
         </div>

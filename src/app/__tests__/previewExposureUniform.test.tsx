@@ -1,7 +1,10 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useEffectiveGradePush } from '~/app/previewGradeUniforms';
+import {
+  useEffectiveExposure,
+  useEffectiveExposurePush,
+} from '~/app/previewExposureUniform';
 import {
   __resetClipDataStoreCachesForTests,
   useClipDataStore,
@@ -28,7 +31,7 @@ interface HarnessProps {
 }
 
 function Harness({ enabled, onPush }: HarnessProps) {
-  useEffectiveGradePush({ enabled, pushExposure: onPush });
+  useEffectiveExposurePush({ enabled, pushExposure: onPush });
   return null;
 }
 
@@ -75,7 +78,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe('useEffectiveGradePush', () => {
+describe('useEffectiveExposurePush', () => {
   it('pushes baseGrade exposure on mount', () => {
     seed();
     useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 0.25 });
@@ -197,5 +200,52 @@ describe('useEffectiveGradePush', () => {
     const push = vi.fn();
     render(<Harness enabled={false} onPush={push} />);
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+function HudHarness() {
+  const exposure = useEffectiveExposure();
+  return (
+    <span data-testid="hud-ev-value">
+      EV {exposure >= 0 ? '+' : ''}
+      {exposure.toFixed(1)}
+    </span>
+  );
+}
+
+describe('useEffectiveExposure (HUD)', () => {
+  it('renders baseGrade exposure when no segment contains currentTime', () => {
+    seed();
+    useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 0.3 });
+    const { getByTestId } = render(<HudHarness />);
+    expect(getByTestId('hud-ev-value').textContent).toBe('EV +0.3');
+  });
+
+  it('renders override exposure when playhead enters override segment', () => {
+    seed([
+      { id: 'seg-a', in: 0, out: 5, playMode: 'normal', speed: 1 },
+      {
+        id: 'seg-b',
+        in: 5,
+        out: 10,
+        playMode: 'normal',
+        speed: 1,
+        gradeOverride: { exposure: 0.7 },
+      },
+    ]);
+    useClipDataStore.getState().setBaseGrade('clip-1', { exposure: 0 });
+
+    const { getByTestId } = render(<HudHarness />);
+    expect(getByTestId('hud-ev-value').textContent).toBe('EV +0.0');
+
+    act(() => {
+      useEditStore.setState({ currentTime: 6 });
+    });
+    expect(getByTestId('hud-ev-value').textContent).toBe('EV +0.7');
+
+    act(() => {
+      useEditStore.setState({ currentTime: 11 });
+    });
+    expect(getByTestId('hud-ev-value').textContent).toBe('EV +0.0');
   });
 });

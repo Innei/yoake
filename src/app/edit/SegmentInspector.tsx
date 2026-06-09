@@ -10,46 +10,8 @@ import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 
-function pad(n: number, w = 2): string {
-  return n.toString().padStart(w, '0');
-}
-
-function formatTimecode(seconds: number): string {
-  const safe = Number.isFinite(seconds) && seconds >= 0 ? seconds : 0;
-  const totalMs = Math.round(safe * 1000);
-  const hours = Math.floor(totalMs / 3_600_000);
-  const minutes = Math.floor((totalMs % 3_600_000) / 60_000);
-  const secs = Math.floor((totalMs % 60_000) / 1000);
-  const ms = totalMs % 1000;
-  return `${pad(hours)}:${pad(minutes)}:${pad(secs)}.${pad(ms, 3)}`;
-}
-
-function parseTimecode(input: string): number | undefined {
-  const trimmed = input.trim();
-  if (trimmed === '') return undefined;
-  const match = trimmed.match(/^(?:(\d+):)?(?:(\d+):)?(\d+)(?:\.(\d{1,3}))?$/);
-  if (!match) return undefined;
-  const [, a, b, c, frac] = match;
-  let h: number;
-  let m: number;
-  let s: number;
-  if (a !== undefined && b !== undefined) {
-    h = Number(a);
-    m = Number(b);
-    s = Number(c);
-  } else if (a !== undefined) {
-    h = 0;
-    m = Number(a);
-    s = Number(c);
-  } else {
-    h = 0;
-    m = 0;
-    s = Number(c);
-  }
-  const ms = frac !== undefined ? Number(frac.padEnd(3, '0')) : 0;
-  if ([h, m, s, ms].some((n) => Number.isNaN(n))) return undefined;
-  return h * 3600 + m * 60 + s + ms / 1000;
-}
+import { SegmentGradeOverrideToggle } from './SegmentGradeOverrideToggle';
+import { formatTimecode, parseTimecode } from './timecode';
 
 const PLAY_MODES: readonly { label: string; value: SegmentPlayMode }[] = [
   { value: 'normal', label: 'Normal' },
@@ -444,35 +406,10 @@ function SegmentInspectorBody({
 
       <div className="border-t border-border" />
 
-      <PanelSection label="Grade override">
-        <label className="flex items-center justify-between gap-2 text-xs">
-          <span className="text-text-secondary">Grade override</span>
-          <button
-            aria-checked={overrideActive}
-            data-testid="segment-grade-override-toggle"
-            role="switch"
-            type="button"
-            className={cn(
-              'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors',
-              overrideActive ? 'bg-accent' : 'bg-fill',
-            )}
-            onClick={onToggleOverride}
-          >
-            <span
-              className={cn(
-                'inline-block size-3 transform rounded-full bg-background transition-transform',
-                overrideActive ? 'translate-x-3.5' : 'translate-x-0.5',
-              )}
-            />
-          </button>
-        </label>
-        <p
-          className="text-[11px] text-text-tertiary"
-          data-testid="segment-grade-override-hint"
-        >
-          Open Grade tab to edit override values.
-        </p>
-      </PanelSection>
+      <SegmentGradeOverrideToggle
+        active={overrideActive}
+        onToggle={onToggleOverride}
+      />
 
       <div className="border-t border-border" />
 
