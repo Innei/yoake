@@ -43,6 +43,8 @@ export function Preview() {
   const frameSourceRef = useRef<VideoFrameSource | null>(null);
   const lutTextureRef = useRef<GPUTexture | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const probedDurationRef = useRef(false);
+  const probedFpsRef = useRef(false);
 
   const [initError, setInitError] = useState<string | null>(null);
   const [gpuReady, setGpuReady] = useState(false);
@@ -253,8 +255,13 @@ export function Preview() {
       video.removeAttribute('src');
       video.load();
       frameSource.detach();
+      probedDurationRef.current = false;
+      probedFpsRef.current = false;
       return;
     }
+
+    probedDurationRef.current = false;
+    probedFpsRef.current = false;
 
     let cancelled = false;
     (async () => {
@@ -269,8 +276,14 @@ export function Preview() {
         void probeMp4(file)
           .then((meta) => {
             if (cancelled) return;
-            if (meta.durationSec > 0) setStoreDuration(meta.durationSec);
-            if (meta.fps > 0) setStoreFps(meta.fps);
+            if (meta.durationSec > 0) {
+              probedDurationRef.current = true;
+              setStoreDuration(meta.durationSec);
+            }
+            if (meta.fps > 0) {
+              probedFpsRef.current = true;
+              setStoreFps(meta.fps);
+            }
           })
           .catch(() => {
             /* MP4 probe is best-effort — fall back to <video> events */
@@ -318,6 +331,7 @@ export function Preview() {
     let durationProbed = false;
     let pendingSeekListener: (() => void) | null = null;
     const publishDuration = () => {
+      if (probedDurationRef.current) return;
       const d = video.duration;
       if (Number.isFinite(d) && d > 0) setStoreDuration(d);
     };
@@ -392,6 +406,7 @@ export function Preview() {
     const frameSource = frameSourceRef.current;
     if (!frameSource) return;
     const unsubscribe = frameSource.onFrame(({ metadata }) => {
+      if (probedFpsRef.current) return;
       if (metadata.presentedFrames > 0 && metadata.mediaTime > 0) {
         const fps = metadata.presentedFrames / metadata.mediaTime;
         if (Number.isFinite(fps) && fps > 0) {
