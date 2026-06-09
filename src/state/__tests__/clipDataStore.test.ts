@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { SidecarV1 } from '~/fs/clipSidecar';
+import type { SidecarV2 } from '~/fs/clipSidecar';
 import { readSidecar, SIDECAR_VERSION, writeSidecar } from '~/fs/clipSidecar';
 import { useClipsStore } from '~/state/clipsStore';
 import { usePrefsStore } from '~/state/prefsStore';
@@ -90,13 +90,15 @@ describe('clipDataStore.load', () => {
   });
 
   it('sorts loaded markers by time ascending', async () => {
-    const data: SidecarV1 = {
+    const data: SidecarV2 = {
       version: SIDECAR_VERSION,
       markers: [
         { id: 'b', time: 5, label: 'b' },
         { id: 'a', time: 1, label: 'a' },
         { id: 'c', time: 3, label: 'c' },
       ],
+      segments: [],
+      baseGrade: {},
     };
     mockedRead.mockResolvedValueOnce(data);
     await useClipDataStore.getState().load('clip-1');
@@ -202,6 +204,8 @@ describe('clipDataStore.addMarker', () => {
     expect(payload).toEqual({
       version: SIDECAR_VERSION,
       markers: [{ id, time: 2.5, label: 'first' }],
+      segments: [],
+      baseGrade: {},
     });
   });
 

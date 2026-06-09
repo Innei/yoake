@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import type { Marker, SidecarV1 } from '~/fs/clipSidecar';
+import type { Marker, SidecarV2 } from '~/fs/clipSidecar';
 import { readSidecar, SIDECAR_VERSION, writeSidecar } from '~/fs/clipSidecar';
 import { useClipsStore } from '~/state/clipsStore';
 import { usePrefsStore } from '~/state/prefsStore';
@@ -85,9 +85,11 @@ function enqueueWrite(clipId: string): void {
       const entry = useClipDataStore.getState().entries[clipId];
       if (!entry) return;
       updateEntry(clipId, { status: 'writing' });
-      const payload: SidecarV1 = {
+      const payload: SidecarV2 = {
         version: SIDECAR_VERSION,
         markers: entry.markers,
+        segments: [],
+        baseGrade: {},
       };
       try {
         await writeSidecar(lookup.dirHandle, lookup.baseName, payload);
