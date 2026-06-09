@@ -9,9 +9,14 @@ import { usePrefsStore } from '~/state/prefsStore';
 import { DeliverTab } from '../DeliverTab';
 
 const extractFrameMock = vi.fn();
+const runExportMock = vi.fn();
 
 vi.mock('~/app/edit/useFrameExtract', () => ({
   useFrameExtract: () => extractFrameMock,
+}));
+
+vi.mock('~/app/edit/useExport', () => ({
+  useExport: () => runExportMock,
 }));
 
 vi.mock('~/fs/clipSidecar', async () => {
@@ -29,6 +34,7 @@ const fileHandle = {} as FileSystemFileHandle;
 
 function resetAll(): void {
   extractFrameMock.mockReset();
+  runExportMock.mockReset();
   useDeliverStore.setState({
     container: 'mp4-h264',
     resolution: 'source',
@@ -92,12 +98,13 @@ describe('DeliverTab sections', () => {
 });
 
 describe('DeliverTab output controls', () => {
-  it('container radio updates the store', () => {
+  it('H.265 and ProRes container choices are disabled', () => {
     const { getByTestId } = render(<DeliverTab />);
-    fireEvent.click(getByTestId('deliver-container-mp4-h265'));
-    expect(useDeliverStore.getState().container).toBe('mp4-h265');
-    fireEvent.click(getByTestId('deliver-container-mov-prores'));
-    expect(useDeliverStore.getState().container).toBe('mov-prores');
+    const h265 = getByTestId('deliver-container-mp4-h265') as HTMLInputElement;
+    const prores = getByTestId('deliver-container-mov-prores') as HTMLInputElement;
+    expect(h265.disabled).toBe(true);
+    expect(prores.disabled).toBe(true);
+    expect(useDeliverStore.getState().container).toBe('mp4-h264');
   });
 
   it('resolution select updates the store', () => {
@@ -107,11 +114,11 @@ describe('DeliverTab output controls', () => {
     expect(useDeliverStore.getState().resolution).toBe('4k');
   });
 
-  it('colorspace select updates the store', () => {
+  it('Rec.2020 HDR colorspace option is disabled', () => {
     const { getByTestId } = render(<DeliverTab />);
     const select = getByTestId('deliver-colorspace-select') as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: 'rec2020-hdr' } });
-    expect(useDeliverStore.getState().colorspace).toBe('rec2020-hdr');
+    const hdrOpt = Array.from(select.options).find((o) => o.value === 'rec2020-hdr');
+    expect(hdrOpt?.disabled).toBe(true);
   });
 });
 
@@ -193,14 +200,32 @@ describe('DeliverTab output mode', () => {
 });
 
 describe('DeliverTab export action', () => {
-  it('Export button is disabled and announces the coming-soon hint', () => {
+  it('Export button is disabled when no export folder is set', () => {
     const { getByTestId } = render(<DeliverTab />);
     const btn = getByTestId('deliver-export-button') as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(btn.getAttribute('aria-disabled')).toBe('true');
-    expect(btn.getAttribute('aria-label') ?? btn.getAttribute('title')).toMatch(
-      /coming soon|next/i,
-    );
+  });
+
+  it('Export button is disabled when no clip is selected', () => {
+    useClipsStore.setState({ selectedClipId: undefined });
+    usePrefsStore.setState({
+      exportDirHandle: { name: 'Exports' } as unknown as FileSystemDirectoryHandle,
+    });
+    const { getByTestId } = render(<DeliverTab />);
+    const btn = getByTestId('deliver-export-button') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('Export button becomes enabled and calls runExport once when clicked', () => {
+    usePrefsStore.setState({
+      exportDirHandle: { name: 'Exports' } as unknown as FileSystemDirectoryHandle,
+    });
+    const { getByTestId } = render(<DeliverTab />);
+    const btn = getByTestId('deliver-export-button') as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    expect(runExportMock).toHaveBeenCalledTimes(1);
   });
 
   it('Frame extract button calls the extract function', () => {

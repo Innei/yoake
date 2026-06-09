@@ -17,15 +17,30 @@ import { useDeliverStore } from '~/state/deliverStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
 
+import { useExport } from './useExport';
 import { useFrameExtract } from './useFrameExtract';
 
-const EXPORT_DISABLED_HINT =
-  'Export pipeline coming soon (FFmpeg WASM integration is the next task)';
+const UNSUPPORTED_CONTAINER_HINT =
+  'Only H.264 .mp4 is supported in this build.';
+const UNSUPPORTED_COLORSPACE_HINT =
+  'HDR (Rec.2020) export is not supported in this build.';
+const NO_CLIP_HINT = 'Pick a clip in the sidebar to export.';
+const NO_FOLDER_HINT = 'Choose an export folder above before exporting.';
 
-const CONTAINERS: readonly { label: string; value: DeliverContainer }[] = [
+const CONTAINERS: readonly {
+  disabled?: boolean;
+  hint?: string;
+  label: string;
+  value: DeliverContainer;
+}[] = [
   { value: 'mp4-h264', label: 'H.264 .mp4' },
-  { value: 'mp4-h265', label: 'H.265 .mp4' },
-  { value: 'mov-prores', label: 'ProRes 422 .mov' },
+  { value: 'mp4-h265', label: 'H.265 .mp4', disabled: true, hint: UNSUPPORTED_CONTAINER_HINT },
+  {
+    value: 'mov-prores',
+    label: 'ProRes 422 .mov',
+    disabled: true,
+    hint: UNSUPPORTED_CONTAINER_HINT,
+  },
 ];
 
 const RESOLUTIONS: readonly { label: string; value: DeliverResolution }[] = [
@@ -34,9 +49,13 @@ const RESOLUTIONS: readonly { label: string; value: DeliverResolution }[] = [
   { value: '4k', label: '4K' },
 ];
 
-const COLORSPACES: readonly { label: string; value: DeliverColorspace }[] = [
+const COLORSPACES: readonly {
+  disabled?: boolean;
+  label: string;
+  value: DeliverColorspace;
+}[] = [
   { value: 'rec709', label: 'Rec.709 (LUT baked)' },
-  { value: 'rec2020-hdr', label: 'Rec.2020 HDR' },
+  { value: 'rec2020-hdr', label: 'Rec.2020 HDR', disabled: true },
 ];
 
 const BAKE_FIELDS: readonly {
@@ -153,8 +172,15 @@ export function DeliverTab() {
   const setPrefHandle = usePrefsStore((s) => s.setHandle);
 
   const extractFrame = useFrameExtract();
+  const runExport = useExport();
 
   const basename = useMemo(() => stripExt(clipName ?? 'output'), [clipName]);
+  const exportDisabled = !selectedClipId || !exportDirHandle;
+  const exportHint = !selectedClipId
+    ? NO_CLIP_HINT
+    : exportDirHandle
+      ? 'Export as H.264 .mp4 with grade baked in.'
+      : NO_FOLDER_HINT;
   const ext = extensionFor(container);
   const filenames = useMemo(
     () => computeFilenames(basename, ext, outputMode, segmentCount),
@@ -190,20 +216,25 @@ export function DeliverTab() {
         >
           {CONTAINERS.map((c) => {
             const active = container === c.value;
+            const disabled = c.disabled === true;
             return (
               <label
                 key={c.value}
+                title={c.hint}
                 className={cn(
-                  'flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors',
-                  active
-                    ? 'border-accent bg-accent/10 text-text'
-                    : 'border-border bg-background-secondary text-text-secondary hover:bg-fill/60',
+                  'flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors',
+                  disabled
+                    ? 'cursor-not-allowed border-border bg-background-secondary text-text-tertiary opacity-50'
+                    : active
+                      ? 'cursor-pointer border-accent bg-accent/10 text-text'
+                      : 'cursor-pointer border-border bg-background-secondary text-text-secondary hover:bg-fill/60',
                 )}
               >
                 <input
                   checked={active}
                   className="sr-only"
                   data-testid={`deliver-container-${c.value}`}
+                  disabled={disabled}
                   name="deliver-container"
                   type="radio"
                   value={c.value}
@@ -216,7 +247,14 @@ export function DeliverTab() {
                     active ? 'bg-accent' : 'bg-border',
                   )}
                 />
-                {c.label}
+                <span className="flex flex-col">
+                  <span>{c.label}</span>
+                  {c.hint ? (
+                    <span className="text-[10px] text-text-tertiary">
+                      {c.hint}
+                    </span>
+                  ) : null}
+                </span>
               </label>
             );
           })}
@@ -241,17 +279,25 @@ export function DeliverTab() {
         <label className="flex flex-col gap-1">
           <span className="text-[11px] text-text-tertiary">Colorspace</span>
           <select
+            aria-describedby="deliver-colorspace-hint"
             className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-text shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
             data-testid="deliver-colorspace-select"
             value={colorspace}
             onChange={(e) => setColorspace(e.target.value as DeliverColorspace)}
           >
             {COLORSPACES.map((c) => (
-              <option key={c.value} value={c.value}>
+              <option disabled={c.disabled === true} key={c.value} value={c.value}>
                 {c.label}
+                {c.disabled ? ' (unsupported)' : ''}
               </option>
             ))}
           </select>
+          <span
+            className="text-[11px] text-text-tertiary"
+            id="deliver-colorspace-hint"
+          >
+            {UNSUPPORTED_COLORSPACE_HINT}
+          </span>
         </label>
         </div>
       </PanelSection>
@@ -414,13 +460,16 @@ export function DeliverTab() {
       <PanelSection>
         <div className="flex flex-col gap-1.5">
           <Button
-            aria-disabled
-            disabled
-            aria-label={EXPORT_DISABLED_HINT}
+            aria-disabled={exportDisabled}
+            aria-label={exportHint}
             data-testid="deliver-export-button"
-            title={EXPORT_DISABLED_HINT}
+            disabled={exportDisabled}
+            title={exportHint}
             type="button"
             variant="primary"
+            onClick={() => {
+              void runExport();
+            }}
           >
             Export
           </Button>
