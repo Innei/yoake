@@ -1,7 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 import { ResizeHandle } from '~/components/ui/resize-handle';
+import { requestPermission } from '~/fs/handleStore';
 import { cn } from '~/lib/cn';
+import { useClipDataStore } from '~/state/clipDataStore';
+import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
 import {
   CLIPS_WIDTH_MAX,
@@ -10,6 +13,8 @@ import {
   INSPECTOR_WIDTH_MIN,
   useLayoutStore,
 } from '~/state/layoutStore';
+import { usePrefsStore } from '~/state/prefsStore';
+import { toast } from '~/state/toastStore';
 
 import { LeftSidebar } from './LeftSidebar';
 import { Preview } from './Preview';
@@ -18,6 +23,52 @@ import { Transport } from './Transport';
 
 export function Shell() {
   const mode = useEditModeStore((s) => s.mode);
+  const selectedClipId = useClipsStore((s) => s.selectedClipId);
+  const clipDirHandle = usePrefsStore((s) => s.clipDirHandle);
+
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    if (!selectedClipId) return;
+    let cancelled = false;
+    (async () => {
+      if (clipDirHandle) {
+        try {
+          const status = await requestPermission(clipDirHandle, 'readwrite');
+          if (cancelled) return;
+          if (status === 'denied') {
+            toast.warning(
+              "Markers won't persist — clip folder write permission was denied",
+            );
+          }
+        } catch {
+          /* fall through to load; clipDataStore handles per-entry readOnly. */
+        }
+      }
+      if (cancelled) return;
+      await useClipDataStore.getState().load(selectedClipId);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, selectedClipId, clipDirHandle]);
+
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'edit') return;
+    useEditModeStore.getState().clearSelection();
+    if (selectedClipId) {
+      void useClipDataStore.getState().load(selectedClipId);
+    }
+  }, [selectedClipId, mode]);
 
   const clipsWidth = useLayoutStore((s) =>
     mode === 'edit' ? s.edit.clipsWidth : s.view.clipsWidth,

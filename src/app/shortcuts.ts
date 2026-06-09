@@ -3,7 +3,9 @@ import { useEffect } from 'react';
 import { parseCubeLut } from '~/color/lutCube';
 import { scanClips } from '~/fs/clipScanner';
 import { readLut, scanLuts } from '~/fs/lutLoader';
+import { useClipDataStore } from '~/state/clipDataStore';
 import { useClipsStore } from '~/state/clipsStore';
+import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
 import { usePrefsStore } from '~/state/prefsStore';
@@ -50,6 +52,18 @@ export const SHORTCUTS: { items: Shortcut[]; section: string }[] = [
       { keys: '⌘C', description: 'Copy current frame to clipboard' },
     ],
   },
+  {
+    section: 'Edit mode',
+    items: [
+      { keys: 'E', description: 'Toggle edit mode' },
+      {
+        keys: 'Esc',
+        description: 'Deselect outline item · exit edit when nothing selected',
+      },
+      { keys: 'M', description: 'Add marker at current time (edit mode)' },
+      { keys: 'Delete', description: 'Delete selected marker (edit mode)' },
+    ],
+  },
 ];
 
 function isEditable(el: EventTarget | null): boolean {
@@ -71,6 +85,14 @@ async function pickClipDirectory(): Promise<
 }
 
 async function openClipFolder(): Promise<void> {
+  if (useEditModeStore.getState().mode === 'edit') {
+    const ok =
+      typeof window !== 'undefined' && typeof window.confirm === 'function'
+        ? window.confirm('Switch folders will exit edit mode. Continue?')
+        : true;
+    if (!ok) return;
+    useEditModeStore.getState().exit();
+  }
   const handle = await pickClipDirectory();
   if (!handle) return;
   await usePrefsStore.getState().setHandle('clipDirHandle', handle);
@@ -150,6 +172,7 @@ export function useGlobalShortcuts(opts: {
       }
       const mod = isMac ? e.metaKey : e.ctrlKey;
       const edit = useEditStore.getState();
+      const editMode = useEditModeStore.getState();
 
       // Cmd/Ctrl combos
       if (mod && !e.altKey && !e.shiftKey) {
@@ -168,6 +191,49 @@ export function useGlobalShortcuts(opts: {
       }
 
       if (e.altKey || e.metaKey || e.ctrlKey) return;
+
+      if (e.key === 'Escape') {
+        if (editMode.mode !== 'edit') return;
+        e.preventDefault();
+        if (editMode.outlineSelection.kind !== 'none') {
+          editMode.clearSelection();
+        } else {
+          editMode.exit();
+        }
+        return;
+      }
+
+      if (e.key === 'e' || e.key === 'E') {
+        e.preventDefault();
+        editMode.toggle();
+        return;
+      }
+
+      if (e.key === 'm' || e.key === 'M') {
+        if (editMode.mode !== 'edit') return;
+        e.preventDefault();
+        const selectedClipId = useClipsStore.getState().selectedClipId;
+        if (!selectedClipId) return;
+        const id = useClipDataStore
+          .getState()
+          .addMarker(selectedClipId, edit.currentTime, '');
+        useEditModeStore.getState().selectMarker(id);
+        toast.info('Marker added', { durationMs: 1200 });
+        return;
+      }
+
+      if (e.key === 'Delete') {
+        if (editMode.mode !== 'edit') return;
+        if (editMode.outlineSelection.kind !== 'marker') return;
+        const selectedClipId = useClipsStore.getState().selectedClipId;
+        if (!selectedClipId) return;
+        e.preventDefault();
+        useClipDataStore
+          .getState()
+          .removeMarker(selectedClipId, editMode.outlineSelection.id);
+        useEditModeStore.getState().clearSelection();
+        return;
+      }
 
       switch (e.key) {
         case '?': {
