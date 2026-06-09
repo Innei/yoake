@@ -165,12 +165,9 @@ export async function encodeSegments(
       });
     }
 
-    const slice =
-      len < framesPerChunk
-        ? chunkBuf.subarray(0, len * frameBytes)
-        : chunkBuf;
+    const sliceCopy = chunkBuf.slice(0, len * frameBytes);
 
-    await ff.writeFile(RAW_INPUT_NAME, slice);
+    await ff.writeFile(RAW_INPUT_NAME, sliceCopy);
     const mp4Name = chunkMp4Name(chunkFiles.length);
     const encodeExit = await ff.exec(
       buildEncodeArgs(width, height, fps, RAW_INPUT_NAME, mp4Name),
