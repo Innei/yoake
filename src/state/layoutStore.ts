@@ -14,37 +14,77 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
 
-interface LayoutState {
+export type LayoutMode = 'view' | 'edit';
+
+export interface LayoutWidths {
   clipsWidth: number;
-  inspectorCollapsed: boolean;
   inspectorWidth: number;
-  setClipsWidth: (px: number) => void;
-  setInspectorCollapsed: (next: boolean) => void;
-  setInspectorWidth: (px: number) => void;
-  toggleInspector: () => void;
 }
+
+interface LayoutState {
+  edit: LayoutWidths;
+  inspectorCollapsed: boolean;
+  setClipsWidth: (mode: LayoutMode, px: number) => void;
+  setInspectorCollapsed: (next: boolean) => void;
+  setInspectorWidth: (mode: LayoutMode, px: number) => void;
+  toggleInspector: () => void;
+  view: LayoutWidths;
+  widthsFor: (mode: LayoutMode) => LayoutWidths;
+}
+
+const defaultWidths = (): LayoutWidths => ({
+  clipsWidth: CLIPS_WIDTH_DEFAULT,
+  inspectorWidth: INSPECTOR_WIDTH_DEFAULT,
+});
 
 export const useLayoutStore = create<LayoutState>()(
   persist(
-    (set) => ({
-      clipsWidth: CLIPS_WIDTH_DEFAULT,
-      inspectorWidth: INSPECTOR_WIDTH_DEFAULT,
+    (set, get) => ({
+      view: defaultWidths(),
+      edit: defaultWidths(),
       inspectorCollapsed: false,
-      setClipsWidth: (px) =>
-        set({ clipsWidth: clamp(px, CLIPS_WIDTH_MIN, CLIPS_WIDTH_MAX) }),
-      setInspectorWidth: (px) =>
-        set({
-          inspectorWidth: clamp(px, INSPECTOR_WIDTH_MIN, INSPECTOR_WIDTH_MAX),
-        }),
+      widthsFor: (mode) => get()[mode],
+      setClipsWidth: (mode, px) =>
+        set((state) => ({
+          [mode]: {
+            ...state[mode],
+            clipsWidth: clamp(px, CLIPS_WIDTH_MIN, CLIPS_WIDTH_MAX),
+          },
+        })),
+      setInspectorWidth: (mode, px) =>
+        set((state) => ({
+          [mode]: {
+            ...state[mode],
+            inspectorWidth: clamp(px, INSPECTOR_WIDTH_MIN, INSPECTOR_WIDTH_MAX),
+          },
+        })),
       setInspectorCollapsed: (next) => set({ inspectorCollapsed: next }),
       toggleInspector: () =>
         set((s) => ({ inspectorCollapsed: !s.inspectorCollapsed })),
     }),
     {
       name: 'dji-lut.layout',
+      version: 1,
+      migrate: (persisted, fromVersion) => {
+        if (fromVersion >= 1) return persisted as LayoutState;
+        const legacy = (persisted ?? {}) as {
+          clipsWidth?: number;
+          inspectorCollapsed?: boolean;
+          inspectorWidth?: number;
+        };
+        const view: LayoutWidths = {
+          clipsWidth: legacy.clipsWidth ?? CLIPS_WIDTH_DEFAULT,
+          inspectorWidth: legacy.inspectorWidth ?? INSPECTOR_WIDTH_DEFAULT,
+        };
+        return {
+          view,
+          edit: { ...view },
+          inspectorCollapsed: legacy.inspectorCollapsed ?? false,
+        } as LayoutState;
+      },
       partialize: (s) => ({
-        clipsWidth: s.clipsWidth,
-        inspectorWidth: s.inspectorWidth,
+        view: s.view,
+        edit: s.edit,
         inspectorCollapsed: s.inspectorCollapsed,
       }),
     },
