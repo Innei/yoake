@@ -106,7 +106,7 @@ export function Shell() {
       className="grid h-dvh w-dvw overflow-hidden bg-background text-text transition-[grid-template-columns,grid-template-rows] duration-200 ease-out motion-reduce:transition-none"
       style={{
         gridTemplateColumns: `${clipsWidth}px minmax(0, 1fr) ${inspectorCollapsed ? 0 : inspectorWidth}px`,
-        gridTemplateRows: `minmax(0, 1fr) ${mode === 'edit' ? 80 : 52}px`,
+        gridTemplateRows: `minmax(0, 1fr) 52px`,
       }}
     >
       <aside className="col-start-1 row-start-1 relative min-h-0 min-w-0 overflow-hidden bg-background-secondary">

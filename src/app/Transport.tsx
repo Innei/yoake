@@ -16,8 +16,6 @@ import { useEffect } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { cn } from '~/lib/cn';
-import { useClipDataStore } from '~/state/clipDataStore';
-import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
@@ -66,13 +64,6 @@ export function Transport() {
   const isEdit = mode === 'edit';
   const previewCut = usePreviewCutStore((s) => s.previewCut);
   const togglePreviewCut = usePreviewCutStore((s) => s.toggle);
-  const selectedClipId = useClipsStore((s) => s.selectedClipId);
-  const segmentCount = useClipDataStore((s) =>
-    selectedClipId
-      ? (s.entries[selectedClipId]?.segments.length ?? 0)
-      : 0,
-  );
-  const hasSegments = segmentCount > 0;
 
   const effectiveFps = fps && fps > 0 ? fps : FALLBACK_FPS;
   const totalFrames = frameIndex(duration, effectiveFps);
@@ -214,54 +205,58 @@ export function Transport() {
         <ViewSettingsPopover />
       </div>
 
-      <div className="flex h-full min-w-0 flex-1 flex-col justify-center">
+      <div className="flex h-full min-w-0 flex-1 items-center">
         <div
-          data-testid="transport-segment-row"
-          style={{ height: hasSegments ? (isEdit ? 28 : 16) : 0 }}
+          data-testid="transport-timeline"
           className={cn(
-            'relative w-full shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
-            'motion-reduce:transition-none',
+            'relative h-9 w-full rounded-sm',
+            'focus-within:ring-2 focus-within:ring-accent/40 focus-within:ring-offset-1 focus-within:ring-offset-background-secondary',
           )}
         >
-          <SegmentLayer readOnly={!isEdit} />
-        </div>
-        <div
-          className="relative h-3 w-full shrink-0"
-          data-testid="transport-marker-row"
-        >
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-fill" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
+            style={{ width: `${progress * 100}%` }}
+          />
+
+          <input
+            aria-label="Scrubber"
+            disabled={disabled}
+            max={duration > 0 ? duration : 0}
+            min={0}
+            step={1 / effectiveFps}
+            type="range"
+            value={currentTime}
+            className={cn(
+              'absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0',
+              '[&::-webkit-slider-runnable-track]:h-full [&::-webkit-slider-runnable-track]:bg-transparent',
+              '[&::-webkit-slider-thumb]:size-0 [&::-webkit-slider-thumb]:appearance-none',
+              '[&::-moz-range-track]:h-full [&::-moz-range-track]:bg-transparent',
+              '[&::-moz-range-thumb]:size-0 [&::-moz-range-thumb]:appearance-none',
+              'disabled:cursor-not-allowed focus-visible:outline-none',
+            )}
+            onChange={onScrub}
+          />
+
+          <div
+            className="absolute inset-x-0 top-1/2 z-20 h-5 -translate-y-1/2"
+            data-testid="transport-segment-row"
+          >
+            <SegmentLayer readOnly={!isEdit} />
+          </div>
+
           <MarkerLayer readOnly={!isEdit} />
-        </div>
-        <div className="relative flex h-full min-h-0 w-full flex-1 items-center">
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-fill" />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
-          style={{ width: `${progress * 100}%` }}
-        />
-        <input
-          aria-label="Scrubber"
-          disabled={disabled}
-          max={duration > 0 ? duration : 0}
-          min={0}
-          step={1 / effectiveFps}
-          type="range"
-          value={currentTime}
-          className={cn(
-            'relative z-10 h-3.5 w-full cursor-pointer appearance-none bg-transparent',
-            '[&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent',
-            '[&::-webkit-slider-thumb]:size-3.5 [&::-webkit-slider-thumb]:appearance-none',
-            '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background-secondary',
-            '[&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:shadow-xs',
-            '[&::-webkit-slider-thumb]:[margin-top:-5px]',
-            '[&::-webkit-slider-thumb]:transition-transform [&:active::-webkit-slider-thumb]:scale-125',
-            '[&::-moz-range-track]:h-1 [&::-moz-range-track]:bg-transparent',
-            '[&::-moz-range-thumb]:size-3.5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2',
-            '[&::-moz-range-thumb]:border-background-secondary [&::-moz-range-thumb]:bg-accent',
-            'disabled:cursor-not-allowed disabled:opacity-40',
-            'focus-visible:outline-none [&:focus-visible::-webkit-slider-thumb]:ring-2 [&:focus-visible::-webkit-slider-thumb]:ring-accent/40',
-          )}
-          onChange={onScrub}
-        />
+
+          <div
+            aria-hidden
+            style={{ left: `${progress * 100}%` }}
+            className={cn(
+              'pointer-events-none absolute top-1/2 z-40 size-3.5 -translate-x-1/2 -translate-y-1/2',
+              'rounded-full border-2 border-background-secondary bg-accent shadow-xs',
+              disabled && 'opacity-40',
+            )}
+          />
         </div>
       </div>
 

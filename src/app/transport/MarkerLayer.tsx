@@ -76,7 +76,7 @@ function MarkerDot({
     return (
       <div
         aria-label={marker.label || 'Marker'}
-        className="pointer-events-auto absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-yellow-400 ring-1 ring-black/40"
+        className="pointer-events-auto absolute top-0 z-30 size-2 -translate-x-1/2 rounded-full bg-yellow-400 ring-1 ring-black/40"
         data-testid={`transport-marker-dot-${marker.id}`}
         style={{ left: `${leftPct}%` }}
         title={marker.label || 'Marker'}
@@ -88,7 +88,7 @@ function MarkerDot({
     <ContextMenu>
       <ContextMenuTrigger
         aria-label={marker.label || 'Marker'}
-        className="pointer-events-auto absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full bg-yellow-400 ring-1 ring-black/40"
+        className="pointer-events-auto absolute top-0 z-30 size-2 -translate-x-1/2 cursor-pointer rounded-full bg-yellow-400 ring-1 ring-black/40"
         data-testid={`transport-marker-dot-${marker.id}`}
         style={{ left: `${leftPct}%` }}
         title={marker.label || 'Marker'}
