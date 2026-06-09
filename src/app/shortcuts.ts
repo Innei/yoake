@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import { parseCubeLut } from '~/color/lutCube';
+import { confirm } from '~/components/ui/modal';
 import { scanClips } from '~/fs/clipScanner';
 import { readLut, scanLuts } from '~/fs/lutLoader';
 import { useClipDataStore } from '~/state/clipDataStore';
@@ -11,6 +12,8 @@ import { useLayoutStore } from '~/state/layoutStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
 import type { ClipMeta } from '~/types';
+
+import { toggleCutMode } from './edit/toggleCutMode';
 
 export interface Shortcut {
   description: string;
@@ -70,8 +73,6 @@ export const SHORTCUTS: { items: Shortcut[]; section: string }[] = [
   },
 ];
 
-const SPLIT_PAD_SEC = 1;
-
 function isEditable(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
   const tag = el.tagName;
@@ -92,10 +93,11 @@ async function pickClipDirectory(): Promise<
 
 async function openClipFolder(): Promise<void> {
   if (useEditModeStore.getState().mode === 'edit') {
-    const ok =
-      typeof window !== 'undefined' && typeof window.confirm === 'function'
-        ? window.confirm('Switch folders will exit edit mode. Continue?')
-        : true;
+    const ok = await confirm({
+      content: 'Switching folders will exit edit mode.',
+      okText: 'Switch',
+      title: 'Switch folders?',
+    });
     if (!ok) return;
     useEditModeStore.getState().exit();
   }
@@ -201,7 +203,9 @@ export function useGlobalShortcuts(opts: {
       if (e.key === 'Escape') {
         if (editMode.mode !== 'edit') return;
         e.preventDefault();
-        if (editMode.outlineSelection.kind !== 'none') {
+        if (editMode.cutMode.active) {
+          editMode.exitCutMode();
+        } else if (editMode.outlineSelection.kind !== 'none') {
           editMode.clearSelection();
         } else {
           editMode.exit();
@@ -253,32 +257,8 @@ export function useGlobalShortcuts(opts: {
 
       if (e.key === 's' || e.key === 'S') {
         if (editMode.mode !== 'edit') return;
-        const selectedClipId = useClipsStore.getState().selectedClipId;
-        if (!selectedClipId) return;
         e.preventDefault();
-        const dataStore = useClipDataStore.getState();
-        const time = edit.currentTime;
-        const result = dataStore.splitAtTime(selectedClipId, time);
-        if (result !== undefined) {
-          toast.info('Segment split', { durationMs: 1200 });
-          return;
-        }
-        const segments =
-          dataStore.entries[selectedClipId]?.segments ?? [];
-        if (segments.length === 0) {
-          const inSec = Math.max(0, time - SPLIT_PAD_SEC);
-          const outSec = Math.min(
-            edit.duration > 0 ? edit.duration : time + SPLIT_PAD_SEC,
-            time + SPLIT_PAD_SEC,
-          );
-          if (outSec > inSec) {
-            const id = dataStore.addSegment(selectedClipId, inSec, outSec);
-            if (id) {
-              useEditModeStore.getState().selectSegment(id);
-              toast.info('Segment added', { durationMs: 1200 });
-            }
-          }
-        }
+        toggleCutMode();
         return;
       }
 

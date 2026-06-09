@@ -11,7 +11,6 @@ import {
   INSPECTOR_WIDTH_DEFAULT,
   useLayoutStore,
 } from '~/state/layoutStore';
-import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import { Transport } from '../Transport';
 
@@ -79,7 +78,6 @@ beforeEach(() => {
     },
     inspectorCollapsed: false,
   });
-  usePreviewCutStore.setState({ previewCut: false });
 });
 
 afterEach(() => {
@@ -132,39 +130,38 @@ describe('Transport mounts SegmentLayer with mode-aware readOnly', () => {
   });
 });
 
-describe('Transport preview cut toggle', () => {
-  it('renders the toggle in view mode', () => {
+describe('Transport cut mode toggle', () => {
+  it('renders the toggle disabled in view mode', () => {
     seedClipWithSegment();
     const { getByTestId } = render(<Transport />);
-    expect(getByTestId('transport-preview-cut-toggle')).toBeTruthy();
+    const btn = getByTestId('transport-cut-mode-toggle') as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(true);
   });
 
-  it('renders the toggle in edit mode', () => {
+  it('renders the toggle enabled in edit mode', () => {
     seedClipWithSegment();
     useEditModeStore.setState({ mode: 'edit' });
     const { getByTestId } = render(<Transport />);
-    expect(getByTestId('transport-preview-cut-toggle')).toBeTruthy();
-  });
-
-  it('reflects aria-pressed=false by default', () => {
-    seedClipWithSegment();
-    const { getByTestId } = render(<Transport />);
-    const btn = getByTestId('transport-preview-cut-toggle');
+    const btn = getByTestId('transport-cut-mode-toggle') as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
     expect(btn.getAttribute('aria-pressed')).toBe('false');
   });
 
-  it('clicking the toggle flips the previewCut state and aria-pressed', () => {
+  it('clicking the toggle enters cut mode for the clip\'s segment in edit mode', () => {
     seedClipWithSegment();
+    useEditModeStore.setState({ mode: 'edit' });
     const { getByTestId } = render(<Transport />);
-    const btn = getByTestId('transport-preview-cut-toggle');
+    const btn = getByTestId('transport-cut-mode-toggle');
 
     fireEvent.click(btn);
 
-    expect(usePreviewCutStore.getState().previewCut).toBe(true);
+    const cut = useEditModeStore.getState().cutMode;
+    expect(cut.active).toBe(true);
     expect(btn.getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(btn);
-    expect(usePreviewCutStore.getState().previewCut).toBe(false);
+    expect(useEditModeStore.getState().cutMode.active).toBe(false);
     expect(btn.getAttribute('aria-pressed')).toBe('false');
   });
 });

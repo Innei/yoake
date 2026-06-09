@@ -20,8 +20,8 @@ import { cn } from '~/lib/cn';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
-import { usePreviewCutStore } from '~/state/previewCutStore';
 
+import { toggleCutMode } from './edit/toggleCutMode';
 import { Timeline } from './transport/timeline';
 
 const FALLBACK_FPS = 30;
@@ -63,8 +63,7 @@ export function Transport() {
   const clipsWidth = useLayoutStore((s) =>
     mode === 'edit' ? s.edit.clipsWidth : s.view.clipsWidth,
   );
-  const previewCut = usePreviewCutStore((s) => s.previewCut);
-  const togglePreviewCut = usePreviewCutStore((s) => s.toggle);
+  const cutModeActive = useEditModeStore((s) => s.cutMode.active);
 
   const effectiveFps = fps && fps > 0 ? fps : FALLBACK_FPS;
   const totalFrames = frameIndex(duration, effectiveFps);
@@ -184,19 +183,21 @@ export function Transport() {
           <ChevronRight aria-hidden className="size-4" />
         </TransportButton>
         <button
-          aria-label="Preview cut"
-          aria-pressed={previewCut}
-          data-testid="transport-preview-cut-toggle"
-          title="Preview cut (skip discard regions, respect speed/freeze)"
+          aria-label="Toggle cut mode"
+          aria-pressed={cutModeActive}
+          data-testid="transport-cut-mode-toggle"
+          disabled={!isEdit}
+          title="Cut (S) — drag in/out points on the timeline"
           type="button"
           className={cn(
             'ml-1 inline-flex size-7 items-center justify-center rounded-md',
             'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
-            previewCut
+            'disabled:cursor-not-allowed disabled:opacity-30',
+            cutModeActive
               ? 'bg-accent text-white shadow-xs hover:opacity-90'
               : 'text-text-secondary hover:bg-fill hover:text-text',
           )}
-          onClick={togglePreviewCut}
+          onClick={toggleCutMode}
         >
           <Scissors aria-hidden className="size-3.5" />
         </button>
@@ -215,6 +216,7 @@ export function Transport() {
             <Timeline.Progress />
             <Timeline.SegmentLayer />
             <Timeline.MarkerLayer />
+            <Timeline.CutThumbs />
             <Timeline.Playhead />
           </Timeline.Track>
         </Timeline.Root>

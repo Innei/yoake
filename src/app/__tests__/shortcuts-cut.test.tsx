@@ -43,7 +43,7 @@ function seedClip(segments: Segment[] = [], duration = 10): void {
         segments,
         baseGrade: {},
         status: 'idle',
-        readOnly: true,
+        readOnly: false,
       },
     },
   });
@@ -61,6 +61,7 @@ beforeEach(() => {
   useEditModeStore.setState({
     mode: 'edit',
     outlineSelection: { kind: 'none' },
+    cutMode: { active: false },
   });
 });
 
@@ -70,7 +71,7 @@ afterEach(() => {
 });
 
 describe('shortcuts — Cut interactivity', () => {
-  it('S key splits at currentTime when inside a segment', () => {
+  it('S key enters cut mode for the segment containing the playhead', () => {
     seedClip(
       [
         {
@@ -84,15 +85,16 @@ describe('shortcuts — Cut interactivity', () => {
       10,
     );
     useEditStore.setState({ currentTime: 2 });
-    const splitSpy = vi.spyOn(useClipDataStore.getState(), 'splitAtTime');
 
     render(<Harness />);
     fireEvent.keyDown(window, { key: 's' });
 
-    expect(splitSpy).toHaveBeenCalledWith('clip-1', 2);
+    const cut = useEditModeStore.getState().cutMode;
+    expect(cut.active).toBe(true);
+    expect(cut.active && cut.segmentId).toBe('a');
   });
 
-  it('S key adds a segment around currentTime when no segments exist', () => {
+  it('S key creates a segment around currentTime when none exist and enters cut mode', () => {
     seedClip([], 10);
     useEditStore.setState({ currentTime: 4 });
     const addSpy = vi.spyOn(useClipDataStore.getState(), 'addSegment');
@@ -103,11 +105,12 @@ describe('shortcuts — Cut interactivity', () => {
     expect(addSpy).toHaveBeenCalledTimes(1);
     const [clipId, inSec, outSec] = addSpy.mock.calls[0]!;
     expect(clipId).toBe('clip-1');
-    expect(inSec).toBeCloseTo(3, 5);
-    expect(outSec).toBeCloseTo(5, 5);
+    expect(inSec).toBeCloseTo(1.5, 5);
+    expect(outSec).toBeCloseTo(6.5, 5);
+    expect(useEditModeStore.getState().cutMode.active).toBe(true);
   });
 
-  it('S key is a no-op when segments exist but playhead is outside all of them', () => {
+  it('S key creates a segment between neighbours when playhead is outside any segment', () => {
     seedClip(
       [
         { id: 'a', in: 6, out: 8, playMode: 'normal', speed: 1 },
@@ -115,25 +118,39 @@ describe('shortcuts — Cut interactivity', () => {
       10,
     );
     useEditStore.setState({ currentTime: 2 });
-    const splitSpy = vi.spyOn(useClipDataStore.getState(), 'splitAtTime');
     const addSpy = vi.spyOn(useClipDataStore.getState(), 'addSegment');
 
     render(<Harness />);
     fireEvent.keyDown(window, { key: 's' });
 
-    expect(splitSpy).toHaveBeenCalledWith('clip-1', 2);
-    expect(splitSpy.mock.results[0]!.value).toBeUndefined();
-    expect(addSpy).not.toHaveBeenCalled();
+    expect(addSpy).toHaveBeenCalledTimes(1);
+    expect(useEditModeStore.getState().cutMode.active).toBe(true);
   });
 
-  it('S key is a no-op when no clip is selected', () => {
-    useClipsStore.setState({ selectedClipId: undefined });
-    const splitSpy = vi.spyOn(useClipDataStore.getState(), 'splitAtTime');
+  it('S key in cut mode exits cut mode', () => {
+    seedClip(
+      [
+        { id: 'a', in: 0, out: 5, playMode: 'normal', speed: 1 },
+      ],
+      10,
+    );
+    useEditModeStore.setState({
+      cutMode: { active: true, segmentId: 'a' },
+    });
 
     render(<Harness />);
     fireEvent.keyDown(window, { key: 's' });
 
-    expect(splitSpy).not.toHaveBeenCalled();
+    expect(useEditModeStore.getState().cutMode.active).toBe(false);
+  });
+
+  it('S key is a no-op when no clip is selected', () => {
+    useClipsStore.setState({ selectedClipId: undefined });
+
+    render(<Harness />);
+    fireEvent.keyDown(window, { key: 's' });
+
+    expect(useEditModeStore.getState().cutMode.active).toBe(false);
   });
 
   it('S key is a no-op when an INPUT is focused', () => {
