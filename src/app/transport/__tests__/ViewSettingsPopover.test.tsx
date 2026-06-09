@@ -23,7 +23,7 @@ describe('ViewSettingsPopover', () => {
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('opens the popover with render-mode + hdr sections when trigger is clicked', () => {
+  it('opens the popover with the render-mode section when trigger is clicked', () => {
     render(<ViewSettingsPopover />);
     const trigger = screen.getByTestId('transport-view-settings-trigger');
 
@@ -31,8 +31,8 @@ describe('ViewSettingsPopover', () => {
 
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByLabelText('Render mode')).toBeTruthy();
-    expect(screen.getByLabelText('HDR peak nits')).toBeTruthy();
-    expect(screen.getByLabelText('HDR strength')).toBeTruthy();
+    expect(screen.queryByLabelText('HDR peak nits')).toBeNull();
+    expect(screen.queryByLabelText('HDR strength')).toBeNull();
   });
 
   it('closes the popover on Escape', () => {

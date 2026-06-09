@@ -1,6 +1,5 @@
 import { SlidersHorizontal } from 'lucide-react';
 
-import { HdrSection } from '~/app/HdrSection';
 import { RenderModeSection } from '~/app/RenderModeSection';
 import {
   Popover,
@@ -33,7 +32,6 @@ export function ViewSettingsPopover() {
       >
         <div className="flex flex-col divide-y divide-border">
           <RenderModeSection />
-          <HdrSection />
         </div>
       </PopoverContent>
     </Popover>

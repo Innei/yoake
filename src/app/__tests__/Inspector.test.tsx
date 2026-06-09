@@ -62,11 +62,15 @@ describe('Inspector view-mode panel', () => {
     expect(screen.getByLabelText('Exposure')).toBeTruthy();
   });
 
-  it('does not render render-mode or HDR sections (moved to Transport)', () => {
+  it('does not render the render-mode section (moved to Transport view-settings popover)', () => {
     render(<Inspector />);
     expect(screen.queryByLabelText('Render mode')).toBeNull();
-    expect(screen.queryByLabelText('HDR peak nits')).toBeNull();
-    expect(screen.queryByLabelText('HDR strength')).toBeNull();
+  });
+
+  it('renders the HDR section inline alongside grade controls', () => {
+    render(<Inspector />);
+    expect(screen.getByLabelText('HDR peak nits')).toBeTruthy();
+    expect(screen.getByLabelText('HDR strength')).toBeTruthy();
   });
 
   it('writes exposure to baseGrade for the selected clip', () => {
