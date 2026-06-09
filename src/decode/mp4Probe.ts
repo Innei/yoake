@@ -1,4 +1,4 @@
-import MP4Box, { type MP4ABuffer, type MP4Info } from 'mp4box';
+import { createFile, type Movie, MP4BoxBuffer } from 'mp4box';
 
 export interface Mp4ProbeResult {
   durationSec: number;
@@ -10,13 +10,9 @@ export interface Mp4ProbeResult {
 
 const CHUNK_BYTES = 4 * 1024 * 1024;
 
-function isVideoTrack(t: MP4Info['tracks'][number]): boolean {
-  return t.video !== undefined && t.video !== null;
-}
-
 export async function probeMp4(file: File): Promise<Mp4ProbeResult> {
   return new Promise((resolve, reject) => {
-    const mp4 = MP4Box.createFile();
+    const mp4 = createFile();
     let resolved = false;
     let nextOffset = 0;
 
@@ -35,28 +31,30 @@ export async function probeMp4(file: File): Promise<Mp4ProbeResult> {
       );
     };
 
-    mp4.onError = (e) => {
-      finishErr(typeof e === 'string' ? e : 'mp4box parse error');
+    mp4.onError = (_module: string, message: string) => {
+      finishErr(message);
     };
 
-    mp4.onReady = (info: MP4Info) => {
+    mp4.onReady = (info: Movie) => {
       try {
-        const videoTrack = info.tracks.find(isVideoTrack);
-        if (!videoTrack || !videoTrack.video) {
+        const track = info.videoTracks[0];
+        if (!track || !track.video) {
           finishErr(new Error('No video track in MP4'));
           return;
         }
-        const timescale = videoTrack.timescale > 0 ? videoTrack.timescale : info.timescale;
-        const durationTicks = videoTrack.duration > 0 ? videoTrack.duration : info.duration;
+        const timescale =
+          track.timescale > 0 ? track.timescale : info.timescale;
+        const durationTicks =
+          track.duration > 0 ? track.duration : info.duration;
         const durationSec = timescale > 0 ? durationTicks / timescale : 0;
-        const totalFrames = videoTrack.nb_samples ?? 0;
+        const totalFrames = track.nb_samples ?? 0;
         const fps = durationSec > 0 ? totalFrames / durationSec : 0;
         finishOk({
           durationSec,
           fps,
-          height: videoTrack.video.height,
+          height: track.video.height,
           totalFrames,
-          width: videoTrack.video.width,
+          width: track.video.width,
         });
       } catch (err) {
         finishErr(err);
@@ -66,20 +64,22 @@ export async function probeMp4(file: File): Promise<Mp4ProbeResult> {
     const pumpNext = async () => {
       if (resolved) return;
       try {
-        const end = Math.min(file.size, nextOffset + CHUNK_BYTES);
         if (nextOffset >= file.size) {
           mp4.flush();
-          if (!resolved) finishErr(new Error('mp4 probe: reached EOF without onReady'));
+          if (!resolved) {
+            finishErr(new Error('mp4 probe: reached EOF without onReady'));
+          }
           return;
         }
+        const end = Math.min(file.size, nextOffset + CHUNK_BYTES);
         const slice = file.slice(nextOffset, end);
-        const ab = (await slice.arrayBuffer()) as MP4ABuffer;
-        ab.fileStart = nextOffset;
-        nextOffset = mp4.appendBuffer(ab);
-        if (typeof nextOffset !== 'number' || !Number.isFinite(nextOffset)) {
-          nextOffset = end;
-        }
-        if (nextOffset < end) nextOffset = end;
+        const raw = await slice.arrayBuffer();
+        const buf = MP4BoxBuffer.fromArrayBuffer(raw, nextOffset);
+        const next = mp4.appendBuffer(buf);
+        nextOffset =
+          typeof next === 'number' && Number.isFinite(next) && next > nextOffset
+            ? Math.max(next, end)
+            : end;
         if (!resolved) {
           queueMicrotask(() => {
             void pumpNext();
