@@ -34,9 +34,16 @@ vi.mock('../Transport', () => ({
   Transport: () => <div data-testid="transport-mock" />,
 }));
 
-vi.mock('../ClipList', () => ({
-  ClipList: () => <div data-testid="clip-list-mock" />,
-}));
+vi.mock('../ClipList', async () => {
+  const { EditToggleButton } = await import('../edit/EditToggleButton');
+  return {
+    ClipList: () => (
+      <div data-testid="clip-list-mock">
+        <EditToggleButton variant="edit" />
+      </div>
+    ),
+  };
+});
 
 vi.mock('../Inspector', () => ({
   Inspector: () => <div data-testid="inspector-mock" />,
@@ -173,7 +180,7 @@ describe('edit-flow integration', () => {
     expect(useEditModeStore.getState().mode).toBe('edit');
     expect(getByTestId('edit-left-panel')).toBeTruthy();
     expect(getByTestId('edit-right-panel')).toBeTruthy();
-    expect(getByTestId('clip-context-panel')).toBeTruthy();
+    expect(getByTestId('clip-overview')).toBeTruthy();
     expect(dir.requestPermission).toHaveBeenCalledWith({ mode: 'readwrite' });
 
     useEditStore.setState({ currentTime: 3.25 });
@@ -211,7 +218,7 @@ describe('edit-flow integration', () => {
     await flushAsync();
     expect(useEditModeStore.getState().outlineSelection.kind).toBe('none');
     expect(useEditModeStore.getState().mode).toBe('edit');
-    expect(getByTestId('clip-context-panel')).toBeTruthy();
+    expect(getByTestId('clip-overview')).toBeTruthy();
     expect(queryByTestId('marker-context-panel')).toBeNull();
 
     fireEvent.keyDown(window, { key: 'Escape' });

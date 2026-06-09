@@ -25,9 +25,16 @@ vi.mock('../Transport', () => ({
   Transport: () => <div data-testid="transport-mock" />,
 }));
 
-vi.mock('../ClipList', () => ({
-  ClipList: () => <div data-testid="clip-list-mock" />,
-}));
+vi.mock('../ClipList', async () => {
+  const { EditToggleButton } = await import('../edit/EditToggleButton');
+  return {
+    ClipList: () => (
+      <div data-testid="clip-list-mock">
+        <EditToggleButton variant="edit" />
+      </div>
+    ),
+  };
+});
 
 vi.mock('../Inspector', () => ({
   Inspector: () => <div data-testid="inspector-mock" />,

@@ -17,6 +17,8 @@ import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
 import type { ClipMeta } from '~/types';
 
+import { EditToggleButton } from './edit/EditToggleButton';
+
 type PermissionView = 'granted' | 'prompt' | 'denied' | 'unknown';
 
 async function pickClipDirectory(): Promise<FileSystemDirectoryHandle | undefined> {
@@ -158,6 +160,7 @@ export function ClipList() {
   return (
     <Panel className="h-full">
       <PanelHeader
+        actions={<EditToggleButton variant="edit" />}
         count={directoryHandle ? clips.length : undefined}
         icon={<Film aria-hidden className="size-3.5" />}
         label="Clips"
