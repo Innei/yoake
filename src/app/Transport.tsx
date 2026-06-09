@@ -5,6 +5,7 @@ import {
   PanelRightOpen,
   Pause,
   Play,
+  Scissors,
   SkipBack,
   SkipForward,
   Volume1,
@@ -18,6 +19,7 @@ import { cn } from '~/lib/cn';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
+import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import { MarkerLayer } from './transport/MarkerLayer';
 import { SegmentLayer } from './transport/SegmentLayer';
@@ -59,6 +61,8 @@ export function Transport() {
   const clipsWidth = useLayoutStore((s) => s.clipsWidth);
   const mode = useEditModeStore((s) => s.mode);
   const isEdit = mode === 'edit';
+  const previewCut = usePreviewCutStore((s) => s.previewCut);
+  const togglePreviewCut = usePreviewCutStore((s) => s.toggle);
 
   const effectiveFps = fps && fps > 0 ? fps : FALLBACK_FPS;
   const totalFrames = frameIndex(duration, effectiveFps);
@@ -180,6 +184,23 @@ export function Transport() {
         >
           <ChevronRight aria-hidden className="size-4" />
         </TransportButton>
+        <button
+          aria-label="Preview cut"
+          aria-pressed={previewCut}
+          data-testid="transport-preview-cut-toggle"
+          title="Preview cut (skip discard regions, respect speed/freeze)"
+          type="button"
+          className={cn(
+            'ml-1 inline-flex size-7 items-center justify-center rounded-md',
+            'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+            previewCut
+              ? 'bg-accent text-white shadow-xs hover:opacity-90'
+              : 'text-text-secondary hover:bg-fill hover:text-text',
+          )}
+          onClick={togglePreviewCut}
+        >
+          <Scissors aria-hidden className="size-3.5" />
+        </button>
       </div>
 
       <div className="flex h-full min-w-0 flex-1 flex-col justify-center">

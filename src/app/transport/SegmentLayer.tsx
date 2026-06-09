@@ -4,9 +4,10 @@ import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from '~/components/ui/context-menu';
-import type { Segment } from '~/fs/clipSidecar';
+import type { Segment, SegmentPlayMode } from '~/fs/clipSidecar';
 import { cn } from '~/lib/cn';
 import { useClipDataStore } from '~/state/clipDataStore';
 import { useClipsStore } from '~/state/clipsStore';
@@ -60,6 +61,8 @@ export function SegmentLayer({ readOnly = false }: Props) {
   const fps = useEditStore((s) => s.fps);
   const updateSegment = useClipDataStore((s) => s.updateSegment);
   const removeSegment = useClipDataStore((s) => s.removeSegment);
+  const setSegmentPlayMode = useClipDataStore((s) => s.setSegmentPlayMode);
+  const setSegmentSpeed = useClipDataStore((s) => s.setSegmentSpeed);
   const splitAtTime = useClipDataStore((s) => s.splitAtTime);
   const addMarker = useClipDataStore((s) => s.addMarker);
   const setCurrentTime = useEditStore((s) => s.setCurrentTime);
@@ -188,6 +191,16 @@ export function SegmentLayer({ readOnly = false }: Props) {
     useEditModeStore.getState().clearSelection();
   };
 
+  const onSetPlayMode = (mode: SegmentPlayMode) => {
+    if (!clipId || !bandClickTime) return;
+    setSegmentPlayMode(clipId, bandClickTime.segId, mode);
+  };
+
+  const onSetSpeed = (speed: number) => {
+    if (!clipId || !bandClickTime) return;
+    setSegmentSpeed(clipId, bandClickTime.segId, speed);
+  };
+
   const onAddMarkerHere = () => {
     if (!clipId || emptyClickTime === undefined) return;
     const id = addMarker(clipId, emptyClickTime, '');
@@ -230,6 +243,8 @@ export function SegmentLayer({ readOnly = false }: Props) {
               onHandlePointerUp={handlePointerUp}
               onJumpToIn={onJumpToIn}
               onJumpToOut={onJumpToOut}
+              onSetPlayMode={onSetPlayMode}
+              onSetSpeed={onSetSpeed}
               onSplitHere={onSplitAtBand}
               onHandlePointerDown={(event, edge) =>
                 handlePointerDown(event, seg.id, edge)
@@ -254,6 +269,8 @@ interface BandProps {
   onHandlePointerUp: (event: React.PointerEvent<HTMLDivElement>) => void;
   onJumpToIn: () => void;
   onJumpToOut: () => void;
+  onSetPlayMode: (mode: SegmentPlayMode) => void;
+  onSetSpeed: (speed: number) => void;
   onSplitHere: () => void;
   readOnly: boolean;
   segment: Segment;
@@ -272,6 +289,8 @@ function SegmentBand({
   onJumpToIn,
   onJumpToOut,
   onDeleteSegment,
+  onSetPlayMode,
+  onSetSpeed,
 }: BandProps) {
   const leftPct = (segment.in / duration) * 100;
   const widthPct = ((segment.out - segment.in) / duration) * 100;
@@ -351,11 +370,46 @@ function SegmentBand({
         <ContextMenuItem onClick={onSplitHere}>Split here</ContextMenuItem>
         <ContextMenuItem onClick={onJumpToIn}>Jump to in</ContextMenuItem>
         <ContextMenuItem onClick={onJumpToOut}>Jump to out</ContextMenuItem>
+        <ContextMenuSeparator />
+        <MenuGroupLabel>Set playMode</MenuGroupLabel>
+        <ContextMenuItem onClick={() => onSetPlayMode('normal')}>
+          Normal
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onSetPlayMode('reverse')}>
+          Reverse
+        </ContextMenuItem>
+        <ContextMenuItem onClick={() => onSetPlayMode('freeze')}>
+          Freeze
+        </ContextMenuItem>
+        {segment.playMode === 'normal' || segment.playMode === 'reverse' ? (
+          <>
+            <ContextMenuSeparator />
+            <MenuGroupLabel>Set speed</MenuGroupLabel>
+            <ContextMenuItem onClick={() => onSetSpeed(0.25)}>
+              0.25x
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => onSetSpeed(0.5)}>
+              0.5x
+            </ContextMenuItem>
+            <ContextMenuItem onClick={() => onSetSpeed(1)}>1x</ContextMenuItem>
+            <ContextMenuItem onClick={() => onSetSpeed(2)}>2x</ContextMenuItem>
+            <ContextMenuItem onClick={() => onSetSpeed(4)}>4x</ContextMenuItem>
+          </>
+        ) : null}
+        <ContextMenuSeparator />
         <ContextMenuItem destructive onClick={onDeleteSegment}>
           Delete segment
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+function MenuGroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-text-tertiary">
+      {children}
+    </div>
   );
 }
 

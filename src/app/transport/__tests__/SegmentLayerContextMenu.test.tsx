@@ -167,4 +167,86 @@ describe('SegmentLayer context menu', () => {
     expect(screen.queryByText('Split here')).toBeNull();
     expect(screen.queryByText('Add marker here')).toBeNull();
   });
+
+  it('right-click menu includes Set playMode items', async () => {
+    seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
+    const { getByTestId } = render(<SegmentLayer />);
+    const band = getByTestId('transport-segment-band-a');
+
+    fireEvent.contextMenu(band, { clientX: 50 });
+
+    expect(await screen.findByText('Normal')).toBeTruthy();
+    expect(screen.getByText('Reverse')).toBeTruthy();
+    expect(screen.getByText('Freeze')).toBeTruthy();
+  });
+
+  it('right-click menu includes Set speed items when playMode is normal', async () => {
+    seedClip(
+      [makeSegment({ id: 'a', in: 1, out: 3, playMode: 'normal' })],
+      10,
+    );
+    const { getByTestId } = render(<SegmentLayer />);
+    const band = getByTestId('transport-segment-band-a');
+
+    fireEvent.contextMenu(band, { clientX: 50 });
+
+    expect(await screen.findByText('0.25x')).toBeTruthy();
+    expect(screen.getByText('0.5x')).toBeTruthy();
+    expect(screen.getByText('1x')).toBeTruthy();
+    expect(screen.getByText('2x')).toBeTruthy();
+    expect(screen.getByText('4x')).toBeTruthy();
+  });
+
+  it('right-click menu hides Set speed items when playMode is freeze', async () => {
+    seedClip(
+      [
+        makeSegment({
+          id: 'a',
+          in: 1,
+          out: 3,
+          playMode: 'freeze',
+          freezeDurationSec: 2,
+        }),
+      ],
+      10,
+    );
+    const { getByTestId } = render(<SegmentLayer />);
+    const band = getByTestId('transport-segment-band-a');
+
+    fireEvent.contextMenu(band, { clientX: 50 });
+
+    expect(await screen.findByText('Normal')).toBeTruthy();
+    expect(screen.queryByText('0.25x')).toBeNull();
+    expect(screen.queryByText('2x')).toBeNull();
+  });
+
+  it('clicking Set playMode Reverse calls setSegmentPlayMode', async () => {
+    seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
+    const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentPlayMode');
+
+    const { getByTestId } = render(<SegmentLayer />);
+    const band = getByTestId('transport-segment-band-a');
+    fireEvent.contextMenu(band, { clientX: 50 });
+
+    const item = await screen.findByText('Reverse');
+    fireEvent.click(item);
+
+    expect(spy).toHaveBeenCalledWith('clip-1', 'a', 'reverse');
+    spy.mockRestore();
+  });
+
+  it('clicking Set speed 2x calls setSegmentSpeed', async () => {
+    seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
+    const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentSpeed');
+
+    const { getByTestId } = render(<SegmentLayer />);
+    const band = getByTestId('transport-segment-band-a');
+    fireEvent.contextMenu(band, { clientX: 50 });
+
+    const item = await screen.findByText('2x');
+    fireEvent.click(item);
+
+    expect(spy).toHaveBeenCalledWith('clip-1', 'a', 2);
+    spy.mockRestore();
+  });
 });

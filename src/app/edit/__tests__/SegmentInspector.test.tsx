@@ -186,4 +186,83 @@ describe('SegmentInspector', () => {
     expect(spy).toHaveBeenCalledWith('clip-1', 'seg-1', { in: 2 });
     spy.mockRestore();
   });
+
+  it('normal playMode: shows speed chips, no freeze input', () => {
+    seed(makeSegment({ playMode: 'normal' }));
+    const { getByTestId, queryByTestId } = render(<SegmentInspector />);
+    expect(getByTestId('segment-speed-chips')).toBeTruthy();
+    expect(getByTestId('segment-speed-input')).toBeTruthy();
+    expect(queryByTestId('segment-freeze-input')).toBeNull();
+    expect(queryByTestId('segment-reverse-hint')).toBeNull();
+  });
+
+  it('freeze playMode: shows freeze input, no speed chips', () => {
+    seed(makeSegment({ playMode: 'freeze', freezeDurationSec: 2 }));
+    const { getByTestId, queryByTestId } = render(<SegmentInspector />);
+    expect(getByTestId('segment-freeze-input')).toBeTruthy();
+    expect(queryByTestId('segment-speed-chips')).toBeNull();
+  });
+
+  it('reverse playMode: shows speed chips and reverse hint', () => {
+    seed(makeSegment({ playMode: 'reverse' }));
+    const { getByTestId } = render(<SegmentInspector />);
+    expect(getByTestId('segment-speed-chips')).toBeTruthy();
+    expect(getByTestId('segment-reverse-hint').textContent).toContain(
+      'Preview plays normal direction',
+    );
+  });
+
+  it('clicking a speed preset chip calls setSegmentSpeed', () => {
+    seed(makeSegment({ playMode: 'normal', speed: 1 }));
+    const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentSpeed');
+    const { getByTestId } = render(<SegmentInspector />);
+
+    fireEvent.click(getByTestId('segment-speed-2'));
+
+    expect(spy).toHaveBeenCalledWith('clip-1', 'seg-1', 2);
+    spy.mockRestore();
+  });
+
+  it('numeric speed input commits on blur', () => {
+    seed(makeSegment({ playMode: 'normal', speed: 1 }));
+    const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentSpeed');
+    const { getByTestId } = render(<SegmentInspector />);
+    const input = getByTestId('segment-speed-input') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: '1.75' } });
+    fireEvent.blur(input);
+
+    expect(spy).toHaveBeenCalledWith('clip-1', 'seg-1', 1.75);
+    spy.mockRestore();
+  });
+
+  it('freeze duration input commits on blur', () => {
+    seed(makeSegment({ playMode: 'freeze', freezeDurationSec: 2 }));
+    const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentFreezeDuration');
+    const { getByTestId } = render(<SegmentInspector />);
+    const input = getByTestId('segment-freeze-input') as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: '3.5' } });
+    fireEvent.blur(input);
+
+    expect(spy).toHaveBeenCalledWith('clip-1', 'seg-1', 3.5);
+    spy.mockRestore();
+  });
+
+  it('switching to freeze playMode sets default freezeDurationSec when undefined', () => {
+    seed(makeSegment({ playMode: 'normal' }));
+    const freezeSpy = vi.spyOn(
+      useClipDataStore.getState(),
+      'setSegmentFreezeDuration',
+    );
+    const modeSpy = vi.spyOn(useClipDataStore.getState(), 'setSegmentPlayMode');
+    const { getByTestId } = render(<SegmentInspector />);
+
+    fireEvent.click(getByTestId('segment-playmode-freeze'));
+
+    expect(modeSpy).toHaveBeenCalledWith('clip-1', 'seg-1', 'freeze');
+    expect(freezeSpy).toHaveBeenCalledWith('clip-1', 'seg-1', 2);
+    modeSpy.mockRestore();
+    freezeSpy.mockRestore();
+  });
 });

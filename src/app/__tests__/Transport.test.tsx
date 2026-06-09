@@ -1,4 +1,4 @@
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Segment } from '~/fs/clipSidecar';
@@ -11,6 +11,7 @@ import {
   INSPECTOR_WIDTH_DEFAULT,
   useLayoutStore,
 } from '~/state/layoutStore';
+import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import { Transport } from '../Transport';
 
@@ -78,6 +79,7 @@ beforeEach(() => {
     },
     inspectorCollapsed: false,
   });
+  usePreviewCutStore.setState({ previewCut: false });
 });
 
 afterEach(() => {
@@ -127,5 +129,42 @@ describe('Transport mounts SegmentLayer with mode-aware readOnly', () => {
     expect(getByTestId('transport-segment-band-a')).toBeTruthy();
     expect(queryByTestId('transport-segment-handle-a-in')).toBeNull();
     expect(queryByTestId('transport-segment-handle-a-out')).toBeNull();
+  });
+});
+
+describe('Transport preview cut toggle', () => {
+  it('renders the toggle in view mode', () => {
+    seedClipWithSegment();
+    const { getByTestId } = render(<Transport />);
+    expect(getByTestId('transport-preview-cut-toggle')).toBeTruthy();
+  });
+
+  it('renders the toggle in edit mode', () => {
+    seedClipWithSegment();
+    useEditModeStore.setState({ mode: 'edit' });
+    const { getByTestId } = render(<Transport />);
+    expect(getByTestId('transport-preview-cut-toggle')).toBeTruthy();
+  });
+
+  it('reflects aria-pressed=false by default', () => {
+    seedClipWithSegment();
+    const { getByTestId } = render(<Transport />);
+    const btn = getByTestId('transport-preview-cut-toggle');
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('clicking the toggle flips the previewCut state and aria-pressed', () => {
+    seedClipWithSegment();
+    const { getByTestId } = render(<Transport />);
+    const btn = getByTestId('transport-preview-cut-toggle');
+
+    fireEvent.click(btn);
+
+    expect(usePreviewCutStore.getState().previewCut).toBe(true);
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(btn);
+    expect(usePreviewCutStore.getState().previewCut).toBe(false);
+    expect(btn.getAttribute('aria-pressed')).toBe('false');
   });
 });

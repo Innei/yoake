@@ -3,6 +3,10 @@
 import { Aperture, Film, ImageOff, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  decidePreviewCutTick,
+  type PreviewCutCursor,
+} from '~/decode/previewCutPlayback';
 import { VideoFrameSource } from '~/decode/VideoFrameSource';
 import { probeHdrCaps } from '~/gpu/caps';
 import { getDevice } from '~/gpu/Device';
@@ -16,9 +20,11 @@ import {
 import { createRawDlogPreviewPipeline } from '~/gpu/pipelines/rawDlogPreview';
 import { createSceneLinearPipeline } from '~/gpu/pipelines/sceneLinear';
 import { cn } from '~/lib/cn';
+import { useClipDataStore } from '~/state/clipDataStore';
 import { useClipsStore } from '~/state/clipsStore';
 import { useEditStore } from '~/state/editStore';
 import { useGpuStore } from '~/state/gpuStore';
+import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import {
   type GpuResources,
@@ -36,6 +42,8 @@ export function Preview() {
   const frameSourceRef = useRef<VideoFrameSource | null>(null);
   const lutTextureRef = useRef<GPUTexture | null>(null);
   const blobUrlRef = useRef<string | null>(null);
+  const previewCutCursorRef = useRef<PreviewCutCursor>({});
+  const lastTickTimeRef = useRef<number | undefined>(undefined);
 
   const [initError, setInitError] = useState<string | null>(null);
   const [gpuReady, setGpuReady] = useState(false);
@@ -302,7 +310,46 @@ export function Preview() {
       requestRepaint();
     };
     const onTimeUpdate = () => {
-      setStoreCurrentTime(video.currentTime);
+      const previewCut = usePreviewCutStore.getState().previewCut;
+      const clipId = useClipsStore.getState().selectedClipId;
+      const segments = clipId
+        ? (useClipDataStore.getState().entries[clipId]?.segments ?? [])
+        : [];
+      if (!previewCut || segments.length === 0) {
+        previewCutCursorRef.current = {};
+        lastTickTimeRef.current = undefined;
+        setStoreCurrentTime(video.currentTime);
+        return;
+      }
+      const nowMs =
+        typeof performance !== 'undefined' && performance.now
+          ? performance.now()
+          : Date.now();
+      const lastTick = lastTickTimeRef.current;
+      const dtSec = lastTick !== undefined ? (nowMs - lastTick) / 1000 : 0;
+      lastTickTimeRef.current = nowMs;
+      const decision = decidePreviewCutTick({
+        currentTime: video.currentTime,
+        dtSec: dtSec > 0 && dtSec < 1 ? dtSec : 1 / 30,
+        nowMs,
+        segments,
+        cursor: previewCutCursorRef.current,
+      });
+      if (decision.kind === 'pass') {
+        setStoreCurrentTime(video.currentTime);
+        return;
+      }
+      if (decision.kind === 'pause') {
+        previewCutCursorRef.current = decision.cursorUpdate ?? {};
+        video.pause();
+        setStoreCurrentTime(video.currentTime);
+        return;
+      }
+      previewCutCursorRef.current = decision.cursorUpdate ?? {};
+      if (Math.abs(video.currentTime - decision.sourceTime) > 1e-3) {
+        video.currentTime = decision.sourceTime;
+      }
+      setStoreCurrentTime(decision.sourceTime);
     };
     const onPlay = () => setStorePlaying(true);
     const onPause = () => setStorePlaying(false);

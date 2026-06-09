@@ -57,6 +57,9 @@ const PLAY_MODES: readonly { label: string; value: SegmentPlayMode }[] = [
   { value: 'freeze', label: 'Freeze' },
 ];
 
+const SPEED_PRESETS: readonly number[] = [0.25, 0.5, 0.75, 1, 1.5, 2, 4];
+const DEFAULT_FREEZE_SEC = 2;
+
 export function SegmentInspector() {
   const clipId = useClipsStore((s) => s.selectedClipId);
   const outlineSelection = useEditModeStore((s) => s.outlineSelection);
@@ -69,6 +72,10 @@ export function SegmentInspector() {
   const updateSegment = useClipDataStore((s) => s.updateSegment);
   const removeSegment = useClipDataStore((s) => s.removeSegment);
   const setSegmentPlayMode = useClipDataStore((s) => s.setSegmentPlayMode);
+  const setSegmentSpeed = useClipDataStore((s) => s.setSegmentSpeed);
+  const setSegmentFreezeDuration = useClipDataStore(
+    (s) => s.setSegmentFreezeDuration,
+  );
   const splitAtTime = useClipDataStore((s) => s.splitAtTime);
   const setCurrentTime = useEditStore((s) => s.setCurrentTime);
 
@@ -101,24 +108,37 @@ export function SegmentInspector() {
     );
   }
 
+  const handlePlayModeChange = (mode: SegmentPlayMode) => {
+    setSegmentPlayMode(clipId, segment.id, mode);
+    if (mode === 'freeze' && segment.freezeDurationSec === undefined) {
+      setSegmentFreezeDuration(clipId, segment.id, DEFAULT_FREEZE_SEC);
+    }
+  };
+
   return (
     <SegmentInspectorBody
       clipId={clipId}
       key={segment.id}
+      segFreezeDuration={segment.freezeDurationSec}
       segIn={segment.in}
       segLabel={segment.label ?? ''}
       segOut={segment.out}
       segPlayMode={segment.playMode}
+      segSpeed={segment.speed}
       onClearSelection={clearSelection}
       onJumpIn={() => setCurrentTime(segment.in)}
       onJumpOut={() => setCurrentTime(segment.out)}
-      onPlayModeChange={(mode) => setSegmentPlayMode(clipId, segment.id, mode)}
+      onPlayModeChange={handlePlayModeChange}
+      onSpeedChange={(speed) => setSegmentSpeed(clipId, segment.id, speed)}
       onSplit={() => splitAtTime(clipId, useEditStore.getState().currentTime)}
       onUpdate={(patch) => updateSegment(clipId, segment.id, patch)}
       onDelete={() => {
         removeSegment(clipId, segment.id);
         clearSelection();
       }}
+      onFreezeDurationChange={(secs) =>
+        setSegmentFreezeDuration(clipId, segment.id, secs)
+      }
     />
   );
 }
@@ -127,15 +147,19 @@ interface BodyProps {
   clipId: string;
   onClearSelection: () => void;
   onDelete: () => void;
+  onFreezeDurationChange: (secs: number) => void;
   onJumpIn: () => void;
   onJumpOut: () => void;
   onPlayModeChange: (mode: SegmentPlayMode) => void;
+  onSpeedChange: (speed: number) => void;
   onSplit: () => void;
   onUpdate: (patch: { in?: number; label?: string; out?: number }) => void;
+  segFreezeDuration?: number;
   segIn: number;
   segLabel: string;
   segOut: number;
   segPlayMode: SegmentPlayMode;
+  segSpeed: number;
 }
 
 function SegmentInspectorBody({
@@ -143,8 +167,12 @@ function SegmentInspectorBody({
   segOut,
   segLabel,
   segPlayMode,
+  segSpeed,
+  segFreezeDuration,
   onUpdate,
   onPlayModeChange,
+  onSpeedChange,
+  onFreezeDurationChange,
   onDelete,
   onSplit,
   onJumpIn,
@@ -156,6 +184,12 @@ function SegmentInspectorBody({
   const [inSource, setInSource] = useState(segIn);
   const [outSource, setOutSource] = useState(segOut);
   const [labelSource, setLabelSource] = useState(segLabel);
+  const [speedValue, setSpeedValue] = useState(() => segSpeed.toString());
+  const [speedSource, setSpeedSource] = useState(segSpeed);
+  const [freezeValue, setFreezeValue] = useState(() =>
+    (segFreezeDuration ?? DEFAULT_FREEZE_SEC).toFixed(3),
+  );
+  const [freezeSource, setFreezeSource] = useState(segFreezeDuration);
 
   if (inSource !== segIn) {
     setInSource(segIn);
@@ -168,6 +202,14 @@ function SegmentInspectorBody({
   if (labelSource !== segLabel) {
     setLabelSource(segLabel);
     setLabelValue(segLabel);
+  }
+  if (speedSource !== segSpeed) {
+    setSpeedSource(segSpeed);
+    setSpeedValue(segSpeed.toString());
+  }
+  if (freezeSource !== segFreezeDuration) {
+    setFreezeSource(segFreezeDuration);
+    setFreezeValue((segFreezeDuration ?? DEFAULT_FREEZE_SEC).toFixed(3));
   }
 
   const duration = Math.max(0, segOut - segIn);
@@ -191,6 +233,27 @@ function SegmentInspectorBody({
   const commitLabel = () => {
     if (labelValue === segLabel) return;
     onUpdate({ label: labelValue });
+  };
+  const commitSpeed = () => {
+    const parsed = Number(speedValue);
+    if (!Number.isFinite(parsed) || parsed < 0.05 || parsed > 10) {
+      setSpeedValue(segSpeed.toString());
+      return;
+    }
+    if (parsed === segSpeed) {
+      setSpeedValue(segSpeed.toString());
+      return;
+    }
+    onSpeedChange(parsed);
+  };
+  const commitFreeze = () => {
+    const parsed = Number(freezeValue);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setFreezeValue((segFreezeDuration ?? DEFAULT_FREEZE_SEC).toFixed(3));
+      return;
+    }
+    if (parsed === segFreezeDuration) return;
+    onFreezeDurationChange(parsed);
   };
 
   const handleKey = (commit: () => void) =>
@@ -285,6 +348,79 @@ function SegmentInspectorBody({
           })}
         </div>
       </PanelSection>
+
+      <div className="border-t border-border" />
+
+      {segPlayMode === 'normal' || segPlayMode === 'reverse' ? (
+        <PanelSection label="Speed">
+          <div
+            className="flex flex-wrap gap-1"
+            data-testid="segment-speed-chips"
+          >
+            {SPEED_PRESETS.map((preset) => {
+              const active = Math.abs(segSpeed - preset) < 1e-6;
+              return (
+                <button
+                  data-testid={`segment-speed-${preset}`}
+                  key={preset}
+                  type="button"
+                  className={cn(
+                    'inline-flex h-7 items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors',
+                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+                    active
+                      ? 'border-accent bg-accent/15 text-text'
+                      : 'border-border bg-background-secondary text-text-secondary hover:bg-fill',
+                  )}
+                  onClick={() => onSpeedChange(preset)}
+                >
+                  {preset}x
+                </button>
+              );
+            })}
+            <input
+              aria-label="Segment speed"
+              className="ml-1 h-7 w-16 rounded-md border border-border bg-background px-2 font-mono text-xs tabular-nums text-text shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              data-testid="segment-speed-input"
+              max={10}
+              min={0.05}
+              step={0.05}
+              type="number"
+              value={speedValue}
+              onBlur={commitSpeed}
+              onChange={(e) => setSpeedValue(e.target.value)}
+              onKeyDown={handleKey(commitSpeed)}
+            />
+          </div>
+          {segPlayMode === 'reverse' ? (
+            <p
+              className="mt-2 text-xs text-text-tertiary"
+              data-testid="segment-reverse-hint"
+            >
+              Preview plays normal direction. Reverse is applied at export.
+            </p>
+          ) : null}
+        </PanelSection>
+      ) : null}
+
+      {segPlayMode === 'freeze' ? (
+        <PanelSection label="Freeze duration">
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] text-text-tertiary">Seconds</span>
+            <input
+              aria-label="Segment freeze duration"
+              className="h-8 w-full rounded-md border border-border bg-background px-2 font-mono text-xs tabular-nums text-text shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+              data-testid="segment-freeze-input"
+              min={0.001}
+              step={0.05}
+              type="number"
+              value={freezeValue}
+              onBlur={commitFreeze}
+              onChange={(e) => setFreezeValue(e.target.value)}
+              onKeyDown={handleKey(commitFreeze)}
+            />
+          </label>
+        </PanelSection>
+      ) : null}
 
       <div className="border-t border-border" />
 
