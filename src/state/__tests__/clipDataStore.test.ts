@@ -6,7 +6,10 @@ import { useClipsStore } from '~/state/clipsStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
 
-import { useClipDataStore } from '../clipDataStore';
+import {
+  __resetClipDataStoreCachesForTests,
+  useClipDataStore,
+} from '../clipDataStore';
 
 vi.mock('~/fs/clipSidecar', async () => {
   const actual = await vi.importActual<typeof import('~/fs/clipSidecar')>(
@@ -46,6 +49,7 @@ function seedClip(id = 'clip-1', name = 'DJI_0042_D.MP4'): void {
 
 function resetStore(): void {
   useClipDataStore.setState({ entries: {} });
+  __resetClipDataStoreCachesForTests();
 }
 
 async function flush(): Promise<void> {
@@ -98,6 +102,80 @@ describe('clipDataStore.load', () => {
     await useClipDataStore.getState().load('clip-1');
     const entry = useClipDataStore.getState().entries['clip-1']!;
     expect(entry.markers.map((m) => m.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('coalesces concurrent loads into a single sidecar read', async () => {
+    let resolveRead: ((value: undefined) => void) | undefined;
+    mockedRead.mockImplementationOnce(
+      () =>
+        new Promise<undefined>((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    const first = useClipDataStore.getState().load('clip-1');
+    const second = useClipDataStore.getState().load('clip-1');
+    expect(mockedRead).toHaveBeenCalledTimes(1);
+    resolveRead!(undefined);
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toBe(b);
+    expect(mockedRead).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clipDataStore.markReadOnly', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+  });
+
+  it('creates a stub readOnly entry when none exists', () => {
+    useClipDataStore.getState().markReadOnly('clip-1', true);
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.readOnly).toBe(true);
+    expect(entry.markers).toEqual([]);
+    expect(entry.status).toBe('idle');
+  });
+
+  it('preserves existing markers when flipping readOnly true', async () => {
+    mockedWrite.mockResolvedValue();
+    const id = useClipDataStore.getState().addMarker('clip-1', 1, 'a');
+    await flush();
+    useClipDataStore.getState().markReadOnly('clip-1', true);
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.readOnly).toBe(true);
+    expect(entry.markers.map((m) => m.id)).toEqual([id]);
+  });
+
+  it('does not write when readOnly and resumes writing after re-grant', async () => {
+    mockedWrite.mockResolvedValue();
+    useClipDataStore.getState().markReadOnly('clip-1', true);
+    useClipDataStore.getState().addMarker('clip-1', 1, 'a');
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+
+    useClipDataStore.getState().markReadOnly('clip-1', false);
+    useClipDataStore.getState().addMarker('clip-1', 2, 'b');
+    await flush();
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not create an entry when marking readOnly false on an unknown clip', () => {
+    useClipDataStore.getState().markReadOnly('ghost', false);
+    expect(useClipDataStore.getState().entries['ghost']).toBeUndefined();
+  });
+
+  it('allows load to re-run after marking readOnly false', async () => {
+    mockedRead.mockResolvedValueOnce(undefined);
+    await useClipDataStore.getState().load('clip-1');
+    expect(mockedRead).toHaveBeenCalledTimes(1);
+
+    useClipDataStore.getState().markReadOnly('clip-1', false);
+    mockedRead.mockResolvedValueOnce(undefined);
+    await useClipDataStore.getState().load('clip-1');
+    expect(mockedRead).toHaveBeenCalledTimes(2);
   });
 });
 

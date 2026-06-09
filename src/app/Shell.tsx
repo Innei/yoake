@@ -36,9 +36,12 @@ export function Shell() {
           const status = await requestPermission(clipDirHandle, 'readwrite');
           if (cancelled) return;
           if (status === 'denied') {
+            useClipDataStore.getState().markReadOnly(selectedClipId, true);
             toast.warning(
               "Markers won't persist — clip folder write permission was denied",
             );
+          } else {
+            useClipDataStore.getState().markReadOnly(selectedClipId, false);
           }
         } catch {
           /* fall through to load; clipDataStore handles per-entry readOnly. */

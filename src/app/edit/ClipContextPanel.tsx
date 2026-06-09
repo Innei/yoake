@@ -2,8 +2,8 @@ import { Aperture } from 'lucide-react';
 
 import { HdrSection } from '~/app/HdrSection';
 import { RenderModeSection } from '~/app/RenderModeSection';
-import ExposureSection from '~/app/sections/ExposureSection';
-import LutSection from '~/app/sections/LutSection';
+import { ExposureSection } from '~/app/sections/ExposureSection';
+import { LutSection } from '~/app/sections/LutSection';
 import { Panel, PanelHeader } from '~/components/ui/panel';
 
 export function ClipContextPanel() {

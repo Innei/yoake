@@ -20,6 +20,7 @@ interface ClipDataState {
   entries: Record<string, ClipEntry>;
   hasPendingWrites: () => boolean;
   load: (clipId: string) => Promise<void>;
+  markReadOnly: (clipId: string, readOnly: boolean) => void;
   removeMarker: (clipId: string, id: string) => void;
   updateMarker: (
     clipId: string,
@@ -29,8 +30,16 @@ interface ClipDataState {
 }
 
 const inflightLoads = new Map<string, Promise<void>>();
+const loadedClipIds = new Set<string>();
 const writeChains = new Map<string, Promise<void>>();
 let pendingWriteCount = 0;
+
+export function __resetClipDataStoreCachesForTests(): void {
+  inflightLoads.clear();
+  loadedClipIds.clear();
+  writeChains.clear();
+  pendingWriteCount = 0;
+}
 
 function sortMarkers(markers: Marker[]): Marker[] {
   return [...markers].sort((a, b) => a.time - b.time);
@@ -116,12 +125,12 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
   load: async (clipId) => {
     const existing = inflightLoads.get(clipId);
     if (existing) return existing;
-    const current = get().entries[clipId];
-    if (current && current.status !== 'loading') {
-      return;
-    }
+    if (loadedClipIds.has(clipId)) return;
     const lookup = lookupClip(clipId);
     if (!lookup) return;
+
+    const current = get().entries[clipId];
+    const preservedReadOnly = current?.readOnly ?? false;
 
     set((state) => ({
       entries: {
@@ -129,7 +138,7 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
         [clipId]: {
           markers: current?.markers ?? [],
           status: 'loading',
-          readOnly: current?.readOnly ?? false,
+          readOnly: preservedReadOnly,
         },
       },
     }));
@@ -141,21 +150,26 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
           set((state) => ({
             entries: {
               ...state.entries,
-              [clipId]: { markers: [], status: 'idle', readOnly: false },
+              [clipId]: {
+                markers: [],
+                status: 'idle',
+                readOnly: preservedReadOnly,
+              },
             },
           }));
-          return;
-        }
-        set((state) => ({
-          entries: {
-            ...state.entries,
-            [clipId]: {
-              markers: sortMarkers(data.markers),
-              status: 'idle',
-              readOnly: false,
+        } else {
+          set((state) => ({
+            entries: {
+              ...state.entries,
+              [clipId]: {
+                markers: sortMarkers(data.markers),
+                status: 'idle',
+                readOnly: preservedReadOnly,
+              },
             },
-          },
-        }));
+          }));
+        }
+        loadedClipIds.add(clipId);
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : String(cause);
         set((state) => ({
@@ -170,6 +184,7 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
           },
         }));
         toast.error("Couldn't read marker sidecar", { description: message });
+        loadedClipIds.add(clipId);
       } finally {
         inflightLoads.delete(clipId);
       }
@@ -228,6 +243,25 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
     });
     const entry = get().entries[clipId];
     if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
+  markReadOnly: (clipId, readOnly) => {
+    if (!readOnly) loadedClipIds.delete(clipId);
+    set((state) => {
+      const prev = state.entries[clipId];
+      if (prev) {
+        if (prev.readOnly === readOnly) return {};
+        return {
+          entries: { ...state.entries, [clipId]: { ...prev, readOnly } },
+        };
+      }
+      if (!readOnly) return {};
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: { markers: [], status: 'idle', readOnly: true },
+        },
+      };
+    });
   },
   removeMarker: (clipId, id) => {
     set((state) => {

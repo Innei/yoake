@@ -2,7 +2,10 @@ import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { readSidecar, writeSidecar } from '~/fs/clipSidecar';
-import { useClipDataStore } from '~/state/clipDataStore';
+import {
+  __resetClipDataStoreCachesForTests,
+  useClipDataStore,
+} from '~/state/clipDataStore';
 import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
@@ -44,11 +47,11 @@ vi.mock('../ExportPanel', () => ({
 }));
 
 vi.mock('../sections/LutSection', () => ({
-  default: () => <div data-testid="lut-section-mock" />,
+  LutSection: () => <div data-testid="lut-section-mock" />,
 }));
 
 vi.mock('../sections/ExposureSection', () => ({
-  default: () => <div data-testid="exposure-section-mock" />,
+  ExposureSection: () => <div data-testid="exposure-section-mock" />,
 }));
 
 vi.mock('../RenderModeSection', () => ({
@@ -93,6 +96,7 @@ function resetAll(): void {
     directoryHandle: undefined,
   });
   useClipDataStore.setState({ entries: {} });
+  __resetClipDataStoreCachesForTests();
   useEditStore.setState({ currentTime: 0 });
   useLayoutStore.setState({
     view: {
@@ -215,5 +219,47 @@ describe('edit-flow integration', () => {
     expect(useEditModeStore.getState().mode).toBe('view');
     expect(getByTestId('clip-list-mock')).toBeTruthy();
     expect(queryByTestId('edit-left-panel')).toBeNull();
+  });
+
+  it('Delete key removes the selected marker and clears outline selection', async () => {
+    const dir = makeDirHandle();
+    usePrefsStore.setState({
+      clipDirHandle: dir as unknown as FileSystemDirectoryHandle,
+    });
+    useClipsStore.setState({
+      clips: [makeClip('clip-1', 'DJI_0042_D.MP4')],
+      directoryHandle: dir as unknown as FileSystemDirectoryHandle,
+    });
+
+    render(<Harness />);
+
+    act(() => {
+      useClipsStore.getState().select('clip-1');
+      useEditModeStore.setState({ mode: 'edit' });
+    });
+    await flushAsync();
+
+    act(() => {
+      const id = useClipDataStore
+        .getState()
+        .addMarker('clip-1', 1.5, 'doomed');
+      useEditModeStore.getState().selectMarker(id);
+    });
+    await flushAsync();
+
+    expect(
+      useClipDataStore.getState().entries['clip-1']!.markers,
+    ).toHaveLength(1);
+    expect(useEditModeStore.getState().outlineSelection.kind).toBe('marker');
+
+    fireEvent.keyDown(window, { key: 'Delete' });
+    await flushAsync();
+
+    expect(
+      useClipDataStore.getState().entries['clip-1']!.markers,
+    ).toHaveLength(0);
+    expect(useEditModeStore.getState().outlineSelection).toEqual({
+      kind: 'none',
+    });
   });
 });

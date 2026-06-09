@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { useEditStore } from '~/state/editStore';
 import { usePrefsStore } from '~/state/prefsStore';
 
-import ExposureSection from '../ExposureSection';
-import LutSection from '../LutSection';
+import { ExposureSection } from '../ExposureSection';
+import { LutSection } from '../LutSection';
 
 afterEach(() => {
   cleanup();

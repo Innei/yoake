@@ -1,7 +1,7 @@
 import { Aperture } from 'lucide-react';
 
-import ExposureSection from '~/app/sections/ExposureSection';
-import LutSection from '~/app/sections/LutSection';
+import { ExposureSection } from '~/app/sections/ExposureSection';
+import { LutSection } from '~/app/sections/LutSection';
 import { Panel, PanelHeader } from '~/components/ui/panel';
 
 import { HdrSection } from './HdrSection';

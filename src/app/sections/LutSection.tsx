@@ -24,7 +24,7 @@ async function pickLutDirectory(): Promise<FileSystemDirectoryHandle | undefined
   }
 }
 
-export default function LutSection() {
+export function LutSection() {
   const lutDirHandle = usePrefsStore((s) => s.lutDirHandle);
   const setHandle = usePrefsStore((s) => s.setHandle);
   const lutDescriptor = useEditStore((s) => s.lutDescriptor);

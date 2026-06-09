@@ -8,7 +8,7 @@ const EXPOSURE_MIN = -3;
 const EXPOSURE_MAX = 3;
 const EXPOSURE_STEP = 0.1;
 
-export default function ExposureSection() {
+export function ExposureSection() {
   const exposure = useEditStore((s) => s.grading.exposure);
   const setExposure = useEditStore((s) => s.setExposure);
 
