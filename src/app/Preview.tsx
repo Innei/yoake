@@ -26,6 +26,7 @@ import { useEditStore } from '~/state/editStore';
 import { useGpuStore } from '~/state/gpuStore';
 import { usePreviewCutStore } from '~/state/previewCutStore';
 
+import { setPreviewCanvas } from './previewCanvasRef';
 import {
   pushExposureToGpu,
   useEffectiveExposure,
@@ -473,12 +474,15 @@ export function Preview() {
     <div className="relative size-full overflow-hidden bg-black">
       <canvas
         height={MAX_PREVIEW_HEIGHT}
-        ref={canvasRef}
         width={MAX_PREVIEW_WIDTH}
         className={cn(
           'size-full object-contain transition-opacity duration-200',
           hasClip ? 'opacity-100' : 'opacity-0',
         )}
+        ref={(el) => {
+          canvasRef.current = el;
+          setPreviewCanvas(el);
+        }}
       />
       <video
         playsInline
