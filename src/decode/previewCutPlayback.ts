@@ -17,6 +17,7 @@ export type PreviewCutDecision =
   | { kind: 'pass' }
   | {
       cursorUpdate?: PreviewCutCursor;
+      isFreezing?: boolean;
       kind: 'advance';
       sourceTime: number;
     }
@@ -24,18 +25,47 @@ export type PreviewCutDecision =
 
 const EPSILON = 1e-6;
 
+function lowerBoundByIn(segments: readonly Segment[], time: number): number {
+  let lo = 0;
+  let hi = segments.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (segments[mid].in < time - EPSILON) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 function findContainingSegment(
   segments: readonly Segment[],
   time: number,
 ): Segment | undefined {
-  return segments.find((s) => time >= s.in - EPSILON && time < s.out - EPSILON);
+  const idx = lowerBoundByIn(segments, time);
+  const candidate = idx > 0 ? segments[idx - 1] : undefined;
+  if (
+    candidate &&
+    time >= candidate.in - EPSILON &&
+    time < candidate.out - EPSILON
+  ) {
+    return candidate;
+  }
+  const atIdx = segments[idx];
+  if (
+    atIdx &&
+    time >= atIdx.in - EPSILON &&
+    time < atIdx.out - EPSILON
+  ) {
+    return atIdx;
+  }
+  return undefined;
 }
 
 function findNextSegment(
   segments: readonly Segment[],
   time: number,
 ): Segment | undefined {
-  return segments.find((s) => s.in >= time - EPSILON);
+  const idx = lowerBoundByIn(segments, time);
+  return segments[idx];
 }
 
 export function decidePreviewCutTick(
@@ -86,6 +116,7 @@ export function decidePreviewCutTick(
     return {
       kind: 'advance',
       sourceTime: containing.in,
+      isFreezing: true,
       cursorUpdate: {
         freezeEnteredAtMs: enteredAt,
         freezeSegmentId: containing.id,

@@ -251,4 +251,104 @@ describe('decidePreviewCutTick', () => {
     });
     expect(decision.kind).toBe('pause');
   });
+
+  it('cumulative source advance under speed=1 equals N * dt (no double-step)', () => {
+    const segments = [
+      makeSegment({ id: 'a', in: 0, out: 100, playMode: 'normal', speed: 1 }),
+    ];
+    const dt = 1 / 30;
+    let driven = 0;
+    let cursor: PreviewCutCursor = {};
+    for (let i = 0; i < 10; i++) {
+      const decision = decidePreviewCutTick({
+        currentTime: driven,
+        dtSec: dt,
+        nowMs: i * dt * 1000,
+        segments,
+        cursor,
+      });
+      expect(decision.kind).toBe('advance');
+      if (decision.kind === 'advance') {
+        driven = decision.sourceTime;
+        cursor = decision.cursorUpdate ?? {};
+      }
+    }
+    expect(driven).toBeCloseTo(10 * dt, 6);
+  });
+
+  it('cumulative source advance under speed=2 equals N * 2 * dt', () => {
+    const segments = [
+      makeSegment({ id: 'a', in: 0, out: 100, playMode: 'normal', speed: 2 }),
+    ];
+    const dt = 1 / 30;
+    let driven = 0;
+    let cursor: PreviewCutCursor = {};
+    for (let i = 0; i < 10; i++) {
+      const decision = decidePreviewCutTick({
+        currentTime: driven,
+        dtSec: dt,
+        nowMs: i * dt * 1000,
+        segments,
+        cursor,
+      });
+      if (decision.kind === 'advance') {
+        driven = decision.sourceTime;
+        cursor = decision.cursorUpdate ?? {};
+      }
+    }
+    expect(driven).toBeCloseTo(10 * 2 * dt, 6);
+  });
+
+  it('freeze segment carries isFreezing hint while pinned', () => {
+    const segments = [
+      makeSegment({
+        id: 'fz',
+        in: 2,
+        out: 2.001,
+        playMode: 'freeze',
+        speed: 1,
+        freezeDurationSec: 2,
+      }),
+    ];
+    const decision = decidePreviewCutTick({
+      currentTime: 2,
+      dtSec: 1 / 30,
+      nowMs: 1500,
+      segments,
+      cursor: { freezeEnteredAtMs: 1000, freezeSegmentId: 'fz' },
+    });
+    expect(decision.kind).toBe('advance');
+    if (decision.kind === 'advance') {
+      expect(decision.isFreezing).toBe(true);
+    }
+  });
+
+  it('binary search: containing segment lookup works across many segments', () => {
+    const segments: Segment[] = [];
+    for (let i = 0; i < 50; i++) {
+      segments.push(makeSegment({ id: `s${i}`, in: i * 10, out: i * 10 + 5 }));
+    }
+    const decisionGap = decidePreviewCutTick({
+      currentTime: 327,
+      dtSec: 1 / 30,
+      nowMs: 0,
+      segments,
+      cursor: emptyCursor,
+    });
+    expect(decisionGap.kind).toBe('advance');
+    if (decisionGap.kind === 'advance') {
+      expect(decisionGap.sourceTime).toBe(330);
+    }
+    const decisionIn = decidePreviewCutTick({
+      currentTime: 322,
+      dtSec: 1 / 30,
+      nowMs: 0,
+      segments,
+      cursor: emptyCursor,
+    });
+    expect(decisionIn.kind).toBe('advance');
+    if (decisionIn.kind === 'advance') {
+      expect(decisionIn.sourceTime).toBeCloseTo(322 + 1 / 30, 6);
+    }
+  });
 });

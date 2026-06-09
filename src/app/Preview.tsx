@@ -44,6 +44,9 @@ export function Preview() {
   const blobUrlRef = useRef<string | null>(null);
   const previewCutCursorRef = useRef<PreviewCutCursor>({});
   const lastTickTimeRef = useRef<number | undefined>(undefined);
+  const lastDrivenSourceTimeRef = useRef<number | undefined>(undefined);
+  const freezeHoldingRef = useRef(false);
+  const driverPauseSuppressRef = useRef(false);
 
   const [initError, setInitError] = useState<string | null>(null);
   const [gpuReady, setGpuReady] = useState(false);
@@ -318,6 +321,10 @@ export function Preview() {
       if (!previewCut || segments.length === 0) {
         previewCutCursorRef.current = {};
         lastTickTimeRef.current = undefined;
+        lastDrivenSourceTimeRef.current = undefined;
+        if (freezeHoldingRef.current) {
+          freezeHoldingRef.current = false;
+        }
         setStoreCurrentTime(video.currentTime);
         return;
       }
@@ -328,31 +335,71 @@ export function Preview() {
       const lastTick = lastTickTimeRef.current;
       const dtSec = lastTick !== undefined ? (nowMs - lastTick) / 1000 : 0;
       lastTickTimeRef.current = nowMs;
+      if (lastDrivenSourceTimeRef.current === undefined) {
+        lastDrivenSourceTimeRef.current = video.currentTime;
+      }
       const decision = decidePreviewCutTick({
-        currentTime: video.currentTime,
+        currentTime: lastDrivenSourceTimeRef.current,
         dtSec: dtSec > 0 && dtSec < 1 ? dtSec : 1 / 30,
         nowMs,
         segments,
         cursor: previewCutCursorRef.current,
       });
       if (decision.kind === 'pass') {
+        lastDrivenSourceTimeRef.current = video.currentTime;
         setStoreCurrentTime(video.currentTime);
         return;
       }
       if (decision.kind === 'pause') {
         previewCutCursorRef.current = decision.cursorUpdate ?? {};
+        lastDrivenSourceTimeRef.current = video.currentTime;
+        if (freezeHoldingRef.current) {
+          freezeHoldingRef.current = false;
+        }
         video.pause();
         setStoreCurrentTime(video.currentTime);
         return;
       }
       previewCutCursorRef.current = decision.cursorUpdate ?? {};
-      if (Math.abs(video.currentTime - decision.sourceTime) > 1e-3) {
+      const wasFreezing = freezeHoldingRef.current;
+      const isFreezing = decision.isFreezing === true;
+      if (isFreezing && !wasFreezing) {
+        freezeHoldingRef.current = true;
+        if (!video.paused) {
+          driverPauseSuppressRef.current = true;
+          video.pause();
+        }
+      } else if (!isFreezing && wasFreezing) {
+        freezeHoldingRef.current = false;
+        if (useEditStore.getState().isPlaying && video.paused) {
+          driverPauseSuppressRef.current = true;
+          void video.play().catch(() => undefined);
+        }
+      }
+      lastDrivenSourceTimeRef.current = decision.sourceTime;
+      const allowSeek = !isFreezing || !wasFreezing;
+      if (
+        allowSeek &&
+        Math.abs(video.currentTime - decision.sourceTime) > 1e-3
+      ) {
         video.currentTime = decision.sourceTime;
       }
       setStoreCurrentTime(decision.sourceTime);
     };
-    const onPlay = () => setStorePlaying(true);
-    const onPause = () => setStorePlaying(false);
+    const onPlay = () => {
+      if (driverPauseSuppressRef.current) {
+        driverPauseSuppressRef.current = false;
+        return;
+      }
+      setStorePlaying(true);
+    };
+    const onPause = () => {
+      if (driverPauseSuppressRef.current) {
+        driverPauseSuppressRef.current = false;
+        return;
+      }
+      setStorePlaying(false);
+    };
     video.addEventListener('loadedmetadata', onLoadedMetadata);
     video.addEventListener('loadeddata', onLoadedData);
     video.addEventListener('timeupdate', onTimeUpdate);
