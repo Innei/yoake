@@ -14,10 +14,12 @@ interface Props {
   readOnly?: boolean;
 }
 
+const EMPTY_MARKERS: readonly Marker[] = [];
+
 export function MarkerLayer({ readOnly = false }: Props) {
   const clipId = useClipsStore((s) => s.selectedClipId);
   const markers = useClipDataStore((s) =>
-    clipId ? (s.entries[clipId]?.markers ?? []) : [],
+    clipId ? (s.entries[clipId]?.markers ?? EMPTY_MARKERS) : EMPTY_MARKERS,
   );
   const duration = useEditStore((s) => s.duration);
   const setCurrentTime = useEditStore((s) => s.setCurrentTime);

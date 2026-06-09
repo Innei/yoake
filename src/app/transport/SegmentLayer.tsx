@@ -18,6 +18,8 @@ interface Props {
   readOnly?: boolean;
 }
 
+const EMPTY_SEGMENTS: readonly Segment[] = [];
+
 const FALLBACK_FPS = 30;
 const HANDLE_PX = 4;
 
@@ -55,7 +57,7 @@ interface DragState {
 export function SegmentLayer({ readOnly = false }: Props) {
   const clipId = useClipsStore((s) => s.selectedClipId);
   const segments = useClipDataStore((s) =>
-    clipId ? (s.entries[clipId]?.segments ?? []) : [],
+    clipId ? (s.entries[clipId]?.segments ?? EMPTY_SEGMENTS) : EMPTY_SEGMENTS,
   );
   const duration = useEditStore((s) => s.duration);
   const fps = useEditStore((s) => s.fps);
