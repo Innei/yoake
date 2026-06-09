@@ -298,22 +298,27 @@ export function Preview() {
     const onLoadedMetadata = () => {
       setStoreDuration(Number.isFinite(video.duration) ? video.duration : 0);
     };
+    const onLoadedData = () => {
+      requestRepaint();
+    };
     const onTimeUpdate = () => {
       setStoreCurrentTime(video.currentTime);
     };
     const onPlay = () => setStorePlaying(true);
     const onPause = () => setStorePlaying(false);
     video.addEventListener('loadedmetadata', onLoadedMetadata);
+    video.addEventListener('loadeddata', onLoadedData);
     video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
     return () => {
       video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('loadeddata', onLoadedData);
       video.removeEventListener('timeupdate', onTimeUpdate);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
     };
-  }, [setStoreCurrentTime, setStoreDuration, setStorePlaying]);
+  }, [requestRepaint, setStoreCurrentTime, setStoreDuration, setStorePlaying]);
 
   useEffect(() => {
     if (!gpuReady) return;

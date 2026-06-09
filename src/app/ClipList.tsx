@@ -19,9 +19,7 @@ import type { ClipMeta } from '~/types';
 
 type PermissionView = 'granted' | 'prompt' | 'denied' | 'unknown';
 
-async function pickClipDirectory(): Promise<
-  FileSystemDirectoryHandle | undefined
-> {
+async function pickClipDirectory(): Promise<FileSystemDirectoryHandle | undefined> {
   if (!('showDirectoryPicker' in window)) return undefined;
   try {
     return await window.showDirectoryPicker({ mode: 'read' });
@@ -128,9 +126,7 @@ export function ClipList() {
   const handleDeleteClip = useCallback(
     async (clip: ClipMeta) => {
       if (!directoryHandle) return;
-      const confirmed = window.confirm(
-        `Delete "${clip.name}" from disk? This cannot be undone.`,
-      );
+      const confirmed = window.confirm(`Delete "${clip.name}" from disk? This cannot be undone.`);
       if (!confirmed) return;
 
       try {
@@ -179,6 +175,7 @@ export function ClipList() {
             title="Change folder"
             type="button"
             variant="ghost"
+            className="-mr-2"
             onClick={handleOpenFolder}
           >
             Change
@@ -235,19 +232,13 @@ export function ClipList() {
             icon={<Film aria-hidden className="size-6" />}
             title="No D-Log clips"
             action={
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleOpenFolder}
-              >
+              <Button type="button" variant="secondary" onClick={handleOpenFolder}>
                 Open another folder
               </Button>
             }
           />
         ) : filtered.length === 0 ? (
-          <p className="px-2 py-3 text-xs text-text-tertiary">
-            No clips match “{filter}”.
-          </p>
+          <p className="px-2 py-3 text-xs text-text-tertiary">No clips match “{filter}”.</p>
         ) : (
           <ul className="flex flex-col gap-0.5">
             {filtered.map((clip) => (

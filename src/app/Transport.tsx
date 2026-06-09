@@ -153,9 +153,9 @@ export function Transport() {
           onClick={togglePlay}
         >
           {isPlaying ? (
-            <Pause aria-hidden className="size-4" />
+            <Pause aria-hidden className="size-4 fill-current" />
           ) : (
-            <Play aria-hidden className="ml-0.5 size-4" />
+            <Play aria-hidden className="ml-0.5 size-4 fill-current" />
           )}
         </Button>
         <TransportButton

@@ -11,8 +11,12 @@ export class VideoFrameSource {
   private listeners = new Set<VideoFrameListener>();
 
   attach(video: HTMLVideoElement): void {
-    if (this.video === video) return;
-    if (this.video) this.detach();
+    if (this.video && this.video !== video) {
+      this.detach();
+    } else if (this.video === video && this.rvfcHandle !== null) {
+      video.cancelVideoFrameCallback(this.rvfcHandle);
+      this.rvfcHandle = null;
+    }
     this.video = video;
     this.schedule();
   }
