@@ -214,9 +214,7 @@ function SegmentBand({
         type="button"
         className={cn(
           'flex-1 rounded-sm border border-accent/40 bg-accent/30 transition-colors',
-          readOnly
-            ? 'pointer-events-none'
-            : 'cursor-pointer hover:bg-accent/40',
+          readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-accent/40',
         )}
         onClick={onBandClick}
       />

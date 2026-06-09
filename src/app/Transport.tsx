@@ -117,18 +117,7 @@ export function Transport() {
   const disabled = duration <= 0;
 
   return (
-    <div className="flex h-full flex-col">
-      <div
-        data-testid="transport-segment-row"
-        style={{ height: isEdit ? 28 : 16 }}
-        className={cn(
-          'shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
-          'motion-reduce:transition-none',
-        )}
-      >
-        <SegmentLayer readOnly={!isEdit} />
-      </div>
-      <div className="flex min-h-0 flex-1 items-center gap-3 pr-3">
+    <div className="flex h-full min-h-0 items-center gap-3 pr-3">
       <div
         className="flex shrink-0 flex-col justify-center px-3 leading-tight"
         style={{ width: clipsWidth }}
@@ -192,7 +181,18 @@ export function Transport() {
         </TransportButton>
       </div>
 
-      <div className="relative flex h-full min-w-0 flex-1 items-center">
+      <div className="flex h-full min-w-0 flex-1 flex-col justify-center">
+        <div
+          data-testid="transport-segment-row"
+          style={{ height: isEdit ? 28 : 16 }}
+          className={cn(
+            'w-full shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
+            'motion-reduce:transition-none',
+          )}
+        >
+          <SegmentLayer readOnly={!isEdit} />
+        </div>
+        <div className="relative flex h-full min-h-0 w-full flex-1 items-center">
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-fill" />
         <div
           aria-hidden
@@ -223,6 +223,7 @@ export function Transport() {
           )}
           onChange={onScrub}
         />
+        </div>
       </div>
 
       <div className="shrink-0 font-mono text-xs tabular-nums text-text-tertiary">
@@ -259,7 +260,6 @@ export function Transport() {
           <PanelRightClose aria-hidden className="size-4" />
         )}
       </button>
-      </div>
     </div>
   );
 }
