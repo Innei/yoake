@@ -1,9 +1,8 @@
 export interface ExtractFrameOptions {
   baseName: string;
-  canvas: HTMLCanvasElement;
+  blob: Blob;
   currentTime: number;
   exportDir: FileSystemDirectoryHandle;
-  fps: number;
 }
 
 export interface ExtractFrameResult {
@@ -14,7 +13,7 @@ function pad(n: number, width: number): string {
   return Math.floor(n).toString().padStart(width, '0');
 }
 
-export function formatTimeForFilename(seconds: number, _fps: number): string {
+export function formatTimeForFilename(seconds: number): string {
   const safe = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
   const totalMs = Math.round(safe * 1000);
   const ms = totalMs % 1000;
@@ -27,28 +26,11 @@ export function formatTimeForFilename(seconds: number, _fps: number): string {
   return `${hh}-${pad(m, 2)}-${pad(s, 2)}-${ms.toString().padStart(3, '0')}`;
 }
 
-function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    try {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('canvas.toBlob returned null'));
-          return;
-        }
-        resolve(blob);
-      }, 'image/png');
-    } catch (cause) {
-      reject(cause instanceof Error ? cause : new Error(String(cause)));
-    }
-  });
-}
-
 export async function extractFrame(
   opts: ExtractFrameOptions,
 ): Promise<ExtractFrameResult> {
-  const { baseName, canvas, currentTime, fps, exportDir } = opts;
-  const blob = await canvasToPngBlob(canvas);
-  const stamp = formatTimeForFilename(currentTime, fps);
+  const { baseName, blob, currentTime, exportDir } = opts;
+  const stamp = formatTimeForFilename(currentTime);
   const filename = `${baseName}_${stamp}.png`;
   const fileHandle = await exportDir.getFileHandle(filename, { create: true });
   const writable = await fileHandle.createWritable();
