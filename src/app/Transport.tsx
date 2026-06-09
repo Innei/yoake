@@ -15,15 +15,14 @@ import {
 import { useEffect } from 'react';
 
 import { Button } from '~/components/ui/button';
+import { Slider } from '~/components/ui/slider';
 import { cn } from '~/lib/cn';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
 import { usePreviewCutStore } from '~/state/previewCutStore';
 
-import { MarkerLayer } from './transport/MarkerLayer';
-import { SegmentLayer } from './transport/SegmentLayer';
-import { ViewSettingsPopover } from './transport/ViewSettingsPopover';
+import { Timeline } from './transport/timeline';
 
 const FALLBACK_FPS = 30;
 
@@ -59,9 +58,11 @@ export function Transport() {
   const toggleMuted = useEditStore((s) => s.toggleMuted);
   const inspectorCollapsed = useLayoutStore((s) => s.inspectorCollapsed);
   const toggleInspector = useLayoutStore((s) => s.toggleInspector);
-  const clipsWidth = useLayoutStore((s) => s.clipsWidth);
   const mode = useEditModeStore((s) => s.mode);
   const isEdit = mode === 'edit';
+  const clipsWidth = useLayoutStore((s) =>
+    mode === 'edit' ? s.edit.clipsWidth : s.view.clipsWidth,
+  );
   const previewCut = usePreviewCutStore((s) => s.previewCut);
   const togglePreviewCut = usePreviewCutStore((s) => s.toggle);
 
@@ -70,7 +71,6 @@ export function Transport() {
   const currentFrame = frameIndex(currentTime, effectiveFps);
   const framesPerSecond = Math.max(1, Math.round(effectiveFps));
   const frameInSecond = currentFrame % framesPerSecond;
-  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -94,6 +94,7 @@ export function Transport() {
         const state = useEditStore.getState();
         if (state.isPlaying) return;
         event.preventDefault();
+        event.stopPropagation();
         const stride = event.shiftKey ? 10 : 1;
         const delta = (event.code === 'ArrowLeft' ? -1 : 1) * stride;
         const next = Math.max(
@@ -103,14 +104,11 @@ export function Transport() {
         setCurrentTime(next);
       }
     }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [duration, effectiveFps, setCurrentTime, setPlaying]);
 
   const togglePlay = () => setPlaying(!isPlaying);
-  const onScrub = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setCurrentTime(Number(event.target.value));
-  };
   const step = (delta: number) => {
     if (isPlaying) return;
     const next = Math.max(
@@ -202,62 +200,24 @@ export function Transport() {
         >
           <Scissors aria-hidden className="size-3.5" />
         </button>
-        <ViewSettingsPopover />
       </div>
 
       <div className="flex h-full min-w-0 flex-1 items-center">
-        <div
+        <Timeline.Root
           data-testid="transport-timeline"
-          className={cn(
-            'relative h-9 w-full rounded-sm',
-            'focus-within:ring-2 focus-within:ring-accent/40 focus-within:ring-offset-1 focus-within:ring-offset-background-secondary',
-          )}
+          duration={duration}
+          fps={effectiveFps}
+          readOnly={!isEdit}
+          value={currentTime}
+          onChange={setCurrentTime}
         >
-          <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-fill" />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
-            style={{ width: `${progress * 100}%` }}
-          />
-
-          <input
-            aria-label="Scrubber"
-            disabled={disabled}
-            max={duration > 0 ? duration : 0}
-            min={0}
-            step={1 / effectiveFps}
-            type="range"
-            value={currentTime}
-            className={cn(
-              'absolute inset-0 z-10 h-full w-full cursor-pointer appearance-none bg-transparent opacity-0',
-              '[&::-webkit-slider-runnable-track]:h-full [&::-webkit-slider-runnable-track]:bg-transparent',
-              '[&::-webkit-slider-thumb]:size-0 [&::-webkit-slider-thumb]:appearance-none',
-              '[&::-moz-range-track]:h-full [&::-moz-range-track]:bg-transparent',
-              '[&::-moz-range-thumb]:size-0 [&::-moz-range-thumb]:appearance-none',
-              'disabled:cursor-not-allowed focus-visible:outline-none',
-            )}
-            onChange={onScrub}
-          />
-
-          <div
-            className="absolute inset-x-0 top-1/2 z-20 h-5 -translate-y-1/2"
-            data-testid="transport-segment-row"
-          >
-            <SegmentLayer readOnly={!isEdit} />
-          </div>
-
-          <MarkerLayer readOnly={!isEdit} />
-
-          <div
-            aria-hidden
-            style={{ left: `${progress * 100}%` }}
-            className={cn(
-              'pointer-events-none absolute top-1/2 z-40 size-3.5 -translate-x-1/2 -translate-y-1/2',
-              'rounded-full border-2 border-background-secondary bg-accent shadow-xs',
-              disabled && 'opacity-40',
-            )}
-          />
-        </div>
+          <Timeline.Track>
+            <Timeline.Progress />
+            <Timeline.SegmentLayer />
+            <Timeline.MarkerLayer />
+            <Timeline.Playhead />
+          </Timeline.Track>
+        </Timeline.Root>
       </div>
 
       <div className="shrink-0 font-mono text-xs tabular-nums text-text-tertiary">
@@ -326,24 +286,15 @@ function VolumeControl({
       >
         <Icon aria-hidden className="size-4" />
       </button>
-      <input
+      <Slider
         aria-label="Volume"
+        className="w-20"
         max={1}
         min={0}
         step={0.01}
-        type="range"
+        thumbClassName="size-3 border-0 bg-accent"
         value={effective}
-        className={cn(
-          'h-3.5 w-20 cursor-pointer appearance-none bg-transparent',
-          '[&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-fill',
-          '[&::-webkit-slider-thumb]:size-3 [&::-webkit-slider-thumb]:appearance-none',
-          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent',
-          '[&::-webkit-slider-thumb]:[margin-top:-4px]',
-          '[&::-moz-range-track]:h-1 [&::-moz-range-track]:rounded-full [&::-moz-range-track]:bg-fill',
-          '[&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent',
-          'focus-visible:outline-none [&:focus-visible::-webkit-slider-thumb]:ring-2 [&:focus-visible::-webkit-slider-thumb]:ring-accent/40',
-        )}
-        onChange={(event) => onVolumeChange(Number(event.target.value))}
+        onValueChange={onVolumeChange}
       />
     </div>
   );

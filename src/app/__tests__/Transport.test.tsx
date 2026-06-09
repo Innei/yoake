@@ -132,21 +132,6 @@ describe('Transport mounts SegmentLayer with mode-aware readOnly', () => {
   });
 });
 
-describe('Transport view-settings popover trigger', () => {
-  it('renders the trigger in view mode', () => {
-    seedClipWithSegment();
-    const { getByTestId } = render(<Transport />);
-    expect(getByTestId('transport-view-settings-trigger')).toBeTruthy();
-  });
-
-  it('renders the trigger in edit mode', () => {
-    seedClipWithSegment();
-    useEditModeStore.setState({ mode: 'edit' });
-    const { getByTestId } = render(<Transport />);
-    expect(getByTestId('transport-view-settings-trigger')).toBeTruthy();
-  });
-});
-
 describe('Transport preview cut toggle', () => {
   it('renders the toggle in view mode', () => {
     seedClipWithSegment();

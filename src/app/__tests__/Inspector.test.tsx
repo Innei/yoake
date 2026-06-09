@@ -62,13 +62,9 @@ describe('Inspector view-mode panel', () => {
     expect(screen.getByLabelText('Exposure')).toBeTruthy();
   });
 
-  it('does not render the render-mode section (moved to Transport view-settings popover)', () => {
+  it('renders render-mode and HDR sections inline alongside grade controls', () => {
     render(<Inspector />);
-    expect(screen.queryByLabelText('Render mode')).toBeNull();
-  });
-
-  it('renders the HDR section inline alongside grade controls', () => {
-    render(<Inspector />);
+    expect(screen.getByLabelText('Render mode')).toBeTruthy();
     expect(screen.getByLabelText('HDR peak nits')).toBeTruthy();
     expect(screen.getByLabelText('HDR strength')).toBeTruthy();
   });
