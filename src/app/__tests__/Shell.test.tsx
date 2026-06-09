@@ -56,20 +56,20 @@ describe('Shell', () => {
     const { getByTestId, queryByTestId } = render(<Shell />);
     expect(getByTestId('clip-list-mock')).toBeTruthy();
     expect(getByTestId('edit-toggle-edit')).toBeTruthy();
-    expect(queryByTestId('edit-left-placeholder')).toBeNull();
+    expect(queryByTestId('edit-left-panel')).toBeNull();
   });
 
   it('renders the ViewRightPanel content in view mode', () => {
     const { getByTestId, queryByTestId } = render(<Shell />);
     expect(getByTestId('inspector-mock')).toBeTruthy();
-    expect(queryByTestId('edit-right-placeholder')).toBeNull();
+    expect(queryByTestId('edit-right-panel')).toBeNull();
   });
 
-  it('renders the edit placeholders in edit mode', () => {
+  it('renders the edit panels in edit mode', () => {
     useEditModeStore.setState({ mode: 'edit' });
     const { getByTestId, queryByTestId } = render(<Shell />);
-    expect(getByTestId('edit-left-placeholder')).toBeTruthy();
-    expect(getByTestId('edit-right-placeholder')).toBeTruthy();
+    expect(getByTestId('edit-left-panel')).toBeTruthy();
+    expect(getByTestId('edit-right-panel')).toBeTruthy();
     expect(queryByTestId('clip-list-mock')).toBeNull();
     expect(queryByTestId('inspector-mock')).toBeNull();
   });
