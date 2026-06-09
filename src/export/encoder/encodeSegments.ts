@@ -37,7 +37,9 @@ export interface EncodeSegmentsResult {
   frameCount: number;
 }
 
-const INPUT_FILE = 'in.raw';
+const RAW_INPUT_NAME = 'chunk_in.raw';
+const CONCAT_LIST_NAME = 'concat_list.txt';
+const TARGET_CHUNK_BYTES = 64 * 1024 * 1024;
 
 function effectiveGradeFor(
   baseGrade: GradeState,
@@ -51,11 +53,12 @@ function effectiveGradeFor(
   return { ...baseGrade, ...segment.gradeOverride };
 }
 
-function buildFfmpegArgs(
+function buildEncodeArgs(
   width: number,
   height: number,
   fps: number,
-  outputFilename: string,
+  inputName: string,
+  outputName: string,
 ): string[] {
   return [
     '-y',
@@ -68,7 +71,7 @@ function buildFfmpegArgs(
     '-r',
     String(fps),
     '-i',
-    INPUT_FILE,
+    inputName,
     '-c:v',
     'libx264',
     '-preset',
@@ -77,8 +80,20 @@ function buildFfmpegArgs(
     'yuv420p',
     '-movflags',
     '+faststart',
-    outputFilename,
+    outputName,
   ];
+}
+
+function chunkMp4Name(index: number): string {
+  return `chunk_${index.toString().padStart(6, '0')}.mp4`;
+}
+
+async function safeDelete(ff: FFmpeg, name: string): Promise<void> {
+  try {
+    await ff.deleteFile(name);
+  } catch {
+    /* ignore missing file */
+  }
 }
 
 export async function encodeSegments(
@@ -111,58 +126,106 @@ export async function encodeSegments(
   }
 
   signal?.throwIfAborted?.();
-  onProgress?.({ phase: 'plan', ratio: 0, framesDone: 0, framesTotal: plan.length });
+  onProgress?.({
+    phase: 'plan',
+    ratio: 0,
+    framesDone: 0,
+    framesTotal: plan.length,
+  });
 
   const ff = await getFfmpeg();
   signal?.throwIfAborted?.();
 
   const frameBytes = width * height * 4;
-  const totalBytes = frameBytes * plan.length;
-  const buffer = new Uint8Array(totalBytes);
+  const framesPerChunk = Math.max(1, Math.floor(TARGET_CHUNK_BYTES / frameBytes));
+  const chunkBuf = new Uint8Array(framesPerChunk * frameBytes);
+  const chunkFiles: string[] = [];
 
-  for (let i = 0; i < plan.length; i += 1) {
+  for (let start = 0; start < plan.length; start += framesPerChunk) {
     signal?.throwIfAborted?.();
-    const frame = plan[i]!;
-    const grade = effectiveGradeFor(baseGrade, segments, frame.sourceTime);
-    const grabbed = await grabFrame(frame.sourceTime, grade);
-    if (grabbed.rgba.byteLength !== frameBytes) {
+    const end = Math.min(start + framesPerChunk, plan.length);
+    const len = end - start;
+
+    for (let i = 0; i < len; i += 1) {
+      signal?.throwIfAborted?.();
+      const frame = plan[start + i]!;
+      const grade = effectiveGradeFor(baseGrade, segments, frame.sourceTime);
+      const grabbed = await grabFrame(frame.sourceTime, grade);
+      if (grabbed.rgba.byteLength !== frameBytes) {
+        throw new Error(
+          `encodeSegments: frame ${start + i} unexpected size ${grabbed.rgba.byteLength} (expected ${frameBytes})`,
+        );
+      }
+      chunkBuf.set(grabbed.rgba, i * frameBytes);
+      onProgress?.({
+        phase: 'grab',
+        ratio: (start + i + 1) / plan.length,
+        framesDone: start + i + 1,
+        framesTotal: plan.length,
+      });
+    }
+
+    const slice =
+      len < framesPerChunk
+        ? chunkBuf.subarray(0, len * frameBytes)
+        : chunkBuf;
+
+    await ff.writeFile(RAW_INPUT_NAME, slice);
+    const mp4Name = chunkMp4Name(chunkFiles.length);
+    const encodeExit = await ff.exec(
+      buildEncodeArgs(width, height, fps, RAW_INPUT_NAME, mp4Name),
+    );
+    if (typeof encodeExit === 'number' && encodeExit !== 0) {
       throw new Error(
-        `encodeSegments: frame ${i} unexpected size ${grabbed.rgba.byteLength} (expected ${frameBytes})`,
+        `encodeSegments: ffmpeg chunk ${chunkFiles.length} exited with code ${encodeExit}`,
       );
     }
-    buffer.set(grabbed.rgba, i * frameBytes);
+    await safeDelete(ff, RAW_INPUT_NAME);
+    chunkFiles.push(mp4Name);
+
     onProgress?.({
-      phase: 'grab',
-      ratio: (i + 1) / plan.length,
-      framesDone: i + 1,
+      phase: 'encode',
+      ratio: end / plan.length,
       framesTotal: plan.length,
     });
   }
 
   signal?.throwIfAborted?.();
-  await ff.writeFile(INPUT_FILE, buffer);
 
-  onProgress?.({ phase: 'encode', ratio: 0, framesTotal: plan.length });
-
-  const progressHandler = ({ progress }: { progress: number }) => {
-    if (Number.isFinite(progress) && progress >= 0 && progress <= 1) {
-      onProgress?.({ phase: 'encode', ratio: progress, framesTotal: plan.length });
+  let finalName: string;
+  if (chunkFiles.length === 1) {
+    finalName = chunkFiles[0]!;
+  } else {
+    const listText = chunkFiles.map((f) => `file '${f}'`).join('\n');
+    await ff.writeFile(
+      CONCAT_LIST_NAME,
+      new TextEncoder().encode(listText),
+    );
+    const concatExit = await ff.exec([
+      '-y',
+      '-f',
+      'concat',
+      '-safe',
+      '0',
+      '-i',
+      CONCAT_LIST_NAME,
+      '-c',
+      'copy',
+      '-movflags',
+      '+faststart',
+      filename,
+    ]);
+    if (typeof concatExit === 'number' && concatExit !== 0) {
+      throw new Error(
+        `encodeSegments: ffmpeg concat exited with code ${concatExit}`,
+      );
     }
-  };
-  ff.on('progress', progressHandler);
-
-  let exitCode: unknown;
-  try {
-    exitCode = await ff.exec(buildFfmpegArgs(width, height, fps, filename));
-  } finally {
-    ff.off('progress', progressHandler);
-  }
-  if (typeof exitCode === 'number' && exitCode !== 0) {
-    throw new Error(`encodeSegments: ffmpeg exited with code ${exitCode}`);
+    await safeDelete(ff, CONCAT_LIST_NAME);
+    finalName = filename;
   }
 
   onProgress?.({ phase: 'finalize', ratio: 1, framesTotal: plan.length });
-  const data = await ff.readFile(filename);
+  const data = await ff.readFile(finalName);
   if (typeof data === 'string') {
     throw new Error('encodeSegments: unexpected string read from ffmpeg memfs');
   }
@@ -170,15 +233,11 @@ export async function encodeSegments(
   owned.set(data);
   const blob = new Blob([owned], { type: 'video/mp4' });
 
-  try {
-    await ff.deleteFile(INPUT_FILE);
-  } catch {
-    /* ignore */
+  for (const f of chunkFiles) {
+    await safeDelete(ff, f);
   }
-  try {
-    await ff.deleteFile(filename);
-  } catch {
-    /* ignore */
+  if (chunkFiles.length > 1) {
+    await safeDelete(ff, filename);
   }
 
   return { blob, filename, frameCount: plan.length };

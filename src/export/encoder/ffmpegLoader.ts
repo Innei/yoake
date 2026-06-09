@@ -1,10 +1,10 @@
 import type { FFmpeg } from '@ffmpeg/ffmpeg';
 
+const DEFAULT_CORE_JS_URL = '/ffmpeg/ffmpeg-core.js';
+const DEFAULT_CORE_WASM_URL = '/ffmpeg/ffmpeg-core.wasm';
+
 let instance: FFmpeg | null = null;
 let pending: Promise<FFmpeg> | null = null;
-
-const CORE_VERSION = '0.12.10';
-const CORE_BASE = `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/umd`;
 
 export interface FfmpegLoadOptions {
   coreURL?: string;
@@ -26,11 +26,11 @@ export async function getFfmpeg(opts: FfmpegLoadOptions = {}): Promise<FFmpeg> {
       ff.on('log', ({ message }) => opts.log!(message));
     }
     const coreURL = await toBlobURL(
-      opts.coreURL ?? `${CORE_BASE}/ffmpeg-core.js`,
+      opts.coreURL ?? DEFAULT_CORE_JS_URL,
       'text/javascript',
     );
     const wasmURL = await toBlobURL(
-      opts.wasmURL ?? `${CORE_BASE}/ffmpeg-core.wasm`,
+      opts.wasmURL ?? DEFAULT_CORE_WASM_URL,
       'application/wasm',
     );
     await ff.load({ coreURL, wasmURL });

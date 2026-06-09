@@ -78,7 +78,7 @@ describe('encodeSegments', () => {
     expect(grab).toHaveBeenCalledTimes(2);
     expect(ff.writeFile).toHaveBeenCalledTimes(1);
     const writeArgs = ff.writeFile.mock.calls[0]!;
-    expect(writeArgs[0]).toBe('in.raw');
+    expect(writeArgs[0]).toBe('chunk_in.raw');
     expect((writeArgs[1] as Uint8Array).byteLength).toBe(WIDTH * HEIGHT * 4 * 2);
 
     expect(ff.exec).toHaveBeenCalledTimes(1);
@@ -91,7 +91,7 @@ describe('encodeSegments', () => {
     expect(execArgs).toContain(`${WIDTH}x${HEIGHT}`);
     expect(execArgs).toContain('-r');
     expect(execArgs).toContain('2');
-    expect(execArgs.at(-1)).toBe('OUT.mp4');
+    expect(execArgs.at(-1)).toMatch(/^chunk_\d+\.mp4$/);
 
     expect(result.filename).toBe('OUT.mp4');
     expect(result.frameCount).toBe(2);
