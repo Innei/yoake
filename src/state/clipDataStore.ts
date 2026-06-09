@@ -1,7 +1,18 @@
 import { create } from 'zustand';
 
-import type { Marker, SidecarV2 } from '~/fs/clipSidecar';
-import { readSidecar, SIDECAR_VERSION, writeSidecar } from '~/fs/clipSidecar';
+import type {
+  GradeState,
+  Marker,
+  Segment,
+  SegmentPlayMode,
+  SidecarV2,
+} from '~/fs/clipSidecar';
+import {
+  readSidecar,
+  SIDECAR_VERSION,
+  validateSegments,
+  writeSidecar,
+} from '~/fs/clipSidecar';
 import { useClipsStore } from '~/state/clipsStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
@@ -9,23 +20,60 @@ import { toast } from '~/state/toastStore';
 export type ClipEntryStatus = 'idle' | 'loading' | 'writing' | 'error';
 
 export interface ClipEntry {
+  baseGrade: GradeState;
   error?: string;
   markers: Marker[];
   readOnly: boolean;
+  segments: Segment[];
   status: ClipEntryStatus;
+}
+
+export interface AddSegmentOptions {
+  freezeDurationSec?: number;
+  gradeOverride?: Partial<GradeState>;
+  label?: string;
+  playMode?: SegmentPlayMode;
+  speed?: number;
 }
 
 interface ClipDataState {
   addMarker: (clipId: string, time: number, label?: string) => string;
+  addSegment: (
+    clipId: string,
+    inSec: number,
+    outSec: number,
+    opts?: AddSegmentOptions,
+  ) => string | undefined;
   entries: Record<string, ClipEntry>;
   hasPendingWrites: () => boolean;
   load: (clipId: string) => Promise<void>;
   markReadOnly: (clipId: string, readOnly: boolean) => void;
   removeMarker: (clipId: string, id: string) => void;
+  removeSegment: (clipId: string, segId: string) => void;
+  setSegmentFreezeDuration: (
+    clipId: string,
+    segId: string,
+    secs: number,
+  ) => void;
+  setSegmentPlayMode: (
+    clipId: string,
+    segId: string,
+    mode: SegmentPlayMode,
+  ) => void;
+  setSegmentSpeed: (clipId: string, segId: string, speed: number) => void;
+  splitAtTime: (
+    clipId: string,
+    time: number,
+  ) => [leftId: string, rightId: string] | undefined;
   updateMarker: (
     clipId: string,
     id: string,
     patch: Partial<Pick<Marker, 'label' | 'time'>>,
+  ) => void;
+  updateSegment: (
+    clipId: string,
+    segId: string,
+    patch: Partial<Segment>,
   ) => void;
 }
 
@@ -43,6 +91,10 @@ export function __resetClipDataStoreCachesForTests(): void {
 
 function sortMarkers(markers: Marker[]): Marker[] {
   return [...markers].sort((a, b) => a.time - b.time);
+}
+
+function sortSegments(segments: Segment[]): Segment[] {
+  return [...segments].sort((a, b) => a.in - b.in);
 }
 
 function stripExt(name: string): string {
@@ -74,6 +126,16 @@ function updateEntry(
   });
 }
 
+function emptyEntry(readOnly = false): ClipEntry {
+  return {
+    markers: [],
+    segments: [],
+    baseGrade: {},
+    status: 'idle',
+    readOnly,
+  };
+}
+
 function enqueueWrite(clipId: string): void {
   const lookup = lookupClip(clipId);
   if (!lookup) return;
@@ -88,8 +150,8 @@ function enqueueWrite(clipId: string): void {
       const payload: SidecarV2 = {
         version: SIDECAR_VERSION,
         markers: entry.markers,
-        segments: [],
-        baseGrade: {},
+        segments: entry.segments,
+        baseGrade: entry.baseGrade,
       };
       try {
         await writeSidecar(lookup.dirHandle, lookup.baseName, payload);
@@ -122,6 +184,13 @@ function enqueueWrite(clipId: string): void {
   writeChains.set(clipId, nextChain);
 }
 
+function findContainingSegment(
+  segments: readonly Segment[],
+  time: number,
+): Segment | undefined {
+  return segments.find((s) => time > s.in && time < s.out);
+}
+
 export const useClipDataStore = create<ClipDataState>((set, get) => ({
   entries: {},
   load: async (clipId) => {
@@ -139,6 +208,8 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
         ...state.entries,
         [clipId]: {
           markers: current?.markers ?? [],
+          segments: current?.segments ?? [],
+          baseGrade: current?.baseGrade ?? {},
           status: 'loading',
           readOnly: preservedReadOnly,
         },
@@ -154,6 +225,8 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
               ...state.entries,
               [clipId]: {
                 markers: [],
+                segments: [],
+                baseGrade: {},
                 status: 'idle',
                 readOnly: preservedReadOnly,
               },
@@ -165,6 +238,8 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
               ...state.entries,
               [clipId]: {
                 markers: sortMarkers(data.markers),
+                segments: sortSegments(data.segments),
+                baseGrade: data.baseGrade,
                 status: 'idle',
                 readOnly: preservedReadOnly,
               },
@@ -179,6 +254,8 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
             ...state.entries,
             [clipId]: {
               markers: [],
+              segments: [],
+              baseGrade: {},
               status: 'idle',
               readOnly: true,
               error: message,
@@ -199,11 +276,7 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
     const marker: Marker = { id, time, label };
     set((state) => {
       const prev = state.entries[clipId];
-      const base: ClipEntry = prev ?? {
-        markers: [],
-        status: 'idle',
-        readOnly: false,
-      };
+      const base: ClipEntry = prev ?? emptyEntry();
       return {
         entries: {
           ...state.entries,
@@ -260,7 +333,7 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
       return {
         entries: {
           ...state.entries,
-          [clipId]: { markers: [], status: 'idle', readOnly: true },
+          [clipId]: emptyEntry(true),
         },
       };
     });
@@ -277,6 +350,122 @@ export const useClipDataStore = create<ClipDataState>((set, get) => ({
     });
     const entry = get().entries[clipId];
     if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
+  addSegment: (clipId, inSec, outSec, opts) => {
+    const id = crypto.randomUUID();
+    const segment: Segment = {
+      id,
+      in: inSec,
+      out: outSec,
+      playMode: opts?.playMode ?? 'normal',
+      speed: opts?.speed ?? 1,
+    };
+    if (opts?.freezeDurationSec !== undefined) {
+      segment.freezeDurationSec = opts.freezeDurationSec;
+    }
+    if (opts?.label !== undefined) segment.label = opts.label;
+    if (opts?.gradeOverride !== undefined) {
+      segment.gradeOverride = opts.gradeOverride;
+    }
+
+    let inserted = false;
+    set((state) => {
+      const prev = state.entries[clipId] ?? emptyEntry();
+      const candidate = sortSegments([...prev.segments, segment]);
+      if (!validateSegments(candidate)) return {};
+      inserted = true;
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: { ...prev, segments: candidate },
+        },
+      };
+    });
+    if (!inserted) return undefined;
+    const entry = get().entries[clipId];
+    if (entry && !entry.readOnly) enqueueWrite(clipId);
+    return id;
+  },
+  updateSegment: (clipId, segId, patch) => {
+    let applied = false;
+    set((state) => {
+      const prev = state.entries[clipId];
+      if (!prev) return {};
+      const index = prev.segments.findIndex((s) => s.id === segId);
+      if (index === -1) return {};
+      const existing = prev.segments[index]!;
+      const next: Segment = { ...existing, ...patch, id: existing.id };
+      const candidate = sortSegments([
+        ...prev.segments.slice(0, index),
+        next,
+        ...prev.segments.slice(index + 1),
+      ]);
+      if (!validateSegments(candidate)) return {};
+      applied = true;
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: { ...prev, segments: candidate },
+        },
+      };
+    });
+    if (!applied) return;
+    const entry = get().entries[clipId];
+    if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
+  removeSegment: (clipId, segId) => {
+    let changed = false;
+    set((state) => {
+      const prev = state.entries[clipId];
+      if (!prev) return {};
+      const segments = prev.segments.filter((s) => s.id !== segId);
+      if (segments.length === prev.segments.length) return {};
+      changed = true;
+      return {
+        entries: { ...state.entries, [clipId]: { ...prev, segments } },
+      };
+    });
+    if (!changed) return;
+    const entry = get().entries[clipId];
+    if (entry && !entry.readOnly) enqueueWrite(clipId);
+  },
+  splitAtTime: (clipId, time) => {
+    const entry = get().entries[clipId];
+    if (!entry || entry.segments.length === 0) return undefined;
+    const target = findContainingSegment(entry.segments, time);
+    if (!target) return undefined;
+    const leftId = crypto.randomUUID();
+    const rightId = crypto.randomUUID();
+    const left: Segment = { ...target, id: leftId, out: time };
+    const right: Segment = { ...target, id: rightId, in: time };
+    let applied = false;
+    set((state) => {
+      const prev = state.entries[clipId];
+      if (!prev) return {};
+      const without = prev.segments.filter((s) => s.id !== target.id);
+      const candidate = sortSegments([...without, left, right]);
+      if (!validateSegments(candidate)) return {};
+      applied = true;
+      return {
+        entries: {
+          ...state.entries,
+          [clipId]: { ...prev, segments: candidate },
+        },
+      };
+    });
+    if (!applied) return undefined;
+    const after = get().entries[clipId];
+    if (after && !after.readOnly) enqueueWrite(clipId);
+    return [leftId, rightId];
+  },
+  setSegmentPlayMode: (clipId, segId, mode) => {
+    get().updateSegment(clipId, segId, { playMode: mode });
+  },
+  setSegmentSpeed: (clipId, segId, speed) => {
+    get().updateSegment(clipId, segId, { speed });
+  },
+  setSegmentFreezeDuration: (clipId, segId, secs) => {
+    get().updateSegment(clipId, segId, { freezeDurationSec: secs });
   },
   hasPendingWrites: () => pendingWriteCount > 0,
 }));

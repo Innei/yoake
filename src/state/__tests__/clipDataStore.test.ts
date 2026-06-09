@@ -59,6 +59,12 @@ async function flush(): Promise<void> {
   await Promise.resolve();
 }
 
+async function flushWrites(): Promise<void> {
+  while (useClipDataStore.getState().hasPendingWrites()) {
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+}
+
 describe('clipDataStore.load', () => {
   beforeEach(() => {
     resetStore();
@@ -331,5 +337,283 @@ describe('clipDataStore write failures', () => {
     entry = useClipDataStore.getState().entries['clip-1']!;
     expect(entry.status).toBe('idle');
     expect(entry.error).toBeUndefined();
+  });
+});
+
+describe('clipDataStore.load segments and baseGrade', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+  });
+
+  it('hydrates segments and baseGrade from sidecar', async () => {
+    const data: SidecarV2 = {
+      version: SIDECAR_VERSION,
+      markers: [],
+      segments: [
+        { id: 's1', in: 0, out: 5, playMode: 'normal', speed: 1 },
+        { id: 's2', in: 10, out: 15, playMode: 'reverse', speed: 1.5 },
+      ],
+      baseGrade: { exposure: 0.25, lutId: 'rec709' },
+    };
+    mockedRead.mockResolvedValueOnce(data);
+    await useClipDataStore.getState().load('clip-1');
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments).toEqual(data.segments);
+    expect(entry.baseGrade).toEqual(data.baseGrade);
+  });
+
+  it('defaults to empty segments and baseGrade when no sidecar exists', async () => {
+    mockedRead.mockResolvedValueOnce(undefined);
+    await useClipDataStore.getState().load('clip-1');
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments).toEqual([]);
+    expect(entry.baseGrade).toEqual({});
+  });
+});
+
+describe('clipDataStore.addSegment', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('inserts a segment with default playMode/speed, returns its id, writes sidecar', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 1, 3);
+    expect(typeof id).toBe('string');
+    expect((id as string).length).toBeGreaterThan(0);
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments).toEqual([
+      { id, in: 1, out: 3, playMode: 'normal', speed: 1 },
+    ]);
+    await flush();
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+    const payload = mockedWrite.mock.calls[0]![2];
+    expect(payload.segments).toEqual([
+      { id, in: 1, out: 3, playMode: 'normal', speed: 1 },
+    ]);
+  });
+
+  it('honors options for playMode/speed/label', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 5, 7, {
+      playMode: 'reverse',
+      speed: 2,
+      label: 'whip',
+    });
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]).toEqual({
+      id,
+      in: 5,
+      out: 7,
+      playMode: 'reverse',
+      speed: 2,
+      label: 'whip',
+    });
+    await flush();
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an overlapping range without mutating state or writing', async () => {
+    useClipDataStore.getState().addSegment('clip-1', 0, 5);
+    await flush();
+    mockedWrite.mockClear();
+    const result = useClipDataStore.getState().addSegment('clip-1', 3, 7);
+    expect(result).toBeUndefined();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments).toHaveLength(1);
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+
+  it('rejects an invalid range (in >= out) without writing', async () => {
+    const result = useClipDataStore.getState().addSegment('clip-1', 5, 5);
+    expect(result).toBeUndefined();
+    const entry = useClipDataStore.getState().entries['clip-1'];
+    expect(entry?.segments ?? []).toEqual([]);
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('clipDataStore.updateSegment', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('applies a patch and writes sidecar', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flush();
+    mockedWrite.mockClear();
+    useClipDataStore
+      .getState()
+      .updateSegment('clip-1', id, { speed: 0.5, label: 'slowmo' });
+    await flush();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.speed).toBe(0.5);
+    expect(entry.segments[0]!.label).toBe('slowmo');
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a patch that would overlap a neighbor; no state or write change', async () => {
+    const a = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    useClipDataStore.getState().addSegment('clip-1', 5, 10);
+    await flushWrites();
+    mockedWrite.mockClear();
+    const before = useClipDataStore.getState().entries['clip-1']!.segments;
+    useClipDataStore.getState().updateSegment('clip-1', a, { out: 7 });
+    const after = useClipDataStore.getState().entries['clip-1']!.segments;
+    expect(after).toEqual(before);
+    await flushWrites();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('clipDataStore.removeSegment', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('removes the segment and writes the remainder', async () => {
+    const a = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    const b = useClipDataStore.getState().addSegment('clip-1', 5, 10)!;
+    await flush();
+    mockedWrite.mockClear();
+    useClipDataStore.getState().removeSegment('clip-1', a);
+    await flush();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments.map((s) => s.id)).toEqual([b]);
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+    const payload = mockedWrite.mock.calls[0]![2];
+    expect(payload.segments.map((s) => s.id)).toEqual([b]);
+  });
+});
+
+describe('clipDataStore.splitAtTime', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('splits a segment into two contiguous halves at the given time', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 10, {
+      label: 'whole',
+      speed: 1.5,
+    })!;
+    await flush();
+    mockedWrite.mockClear();
+    const result = useClipDataStore.getState().splitAtTime('clip-1', 4);
+    expect(result).toBeDefined();
+    const [leftId, rightId] = result!;
+    expect(typeof leftId).toBe('string');
+    expect(typeof rightId).toBe('string');
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments).toHaveLength(2);
+    const left = entry.segments.find((s) => s.id === leftId)!;
+    const right = entry.segments.find((s) => s.id === rightId)!;
+    expect(left.in).toBe(0);
+    expect(left.out).toBe(4);
+    expect(right.in).toBe(4);
+    expect(right.out).toBe(10);
+    expect(left.speed).toBe(1.5);
+    expect(right.speed).toBe(1.5);
+    expect(left.id).not.toBe(id);
+    expect(right.id).not.toBe(id);
+    await flush();
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns undefined when time falls in a discard region', async () => {
+    useClipDataStore.getState().addSegment('clip-1', 0, 2);
+    useClipDataStore.getState().addSegment('clip-1', 5, 8);
+    await flushWrites();
+    mockedWrite.mockClear();
+    const result = useClipDataStore.getState().splitAtTime('clip-1', 3);
+    expect(result).toBeUndefined();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments).toHaveLength(2);
+    await flushWrites();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined when segments[] is empty', async () => {
+    const result = useClipDataStore.getState().splitAtTime('clip-1', 3);
+    expect(result).toBeUndefined();
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined when time is exactly on a segment boundary', async () => {
+    useClipDataStore.getState().addSegment('clip-1', 0, 5);
+    await flush();
+    mockedWrite.mockClear();
+    expect(useClipDataStore.getState().splitAtTime('clip-1', 0)).toBeUndefined();
+    expect(useClipDataStore.getState().splitAtTime('clip-1', 5)).toBeUndefined();
+    await flush();
+    expect(mockedWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe('clipDataStore segment convenience setters', () => {
+  beforeEach(() => {
+    resetStore();
+    mockedRead.mockReset();
+    mockedWrite.mockReset();
+    mockedToastError.mockReset();
+    seedClip();
+    mockedWrite.mockResolvedValue();
+  });
+
+  it('setSegmentPlayMode updates playMode and writes', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flush();
+    mockedWrite.mockClear();
+    useClipDataStore.getState().setSegmentPlayMode('clip-1', id, 'freeze');
+    await flush();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.playMode).toBe('freeze');
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('setSegmentSpeed updates speed and writes', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flush();
+    mockedWrite.mockClear();
+    useClipDataStore.getState().setSegmentSpeed('clip-1', id, 2);
+    await flush();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.speed).toBe(2);
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('setSegmentFreezeDuration updates freezeDurationSec and writes', async () => {
+    const id = useClipDataStore.getState().addSegment('clip-1', 0, 4)!;
+    await flush();
+    mockedWrite.mockClear();
+    useClipDataStore.getState().setSegmentFreezeDuration('clip-1', id, 1.5);
+    await flush();
+    const entry = useClipDataStore.getState().entries['clip-1']!;
+    expect(entry.segments[0]!.freezeDurationSec).toBe(1.5);
+    expect(mockedWrite).toHaveBeenCalledTimes(1);
   });
 });

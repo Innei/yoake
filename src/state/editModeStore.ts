@@ -6,7 +6,8 @@ export type EditMode = 'view' | 'edit';
 
 export type OutlineSelection =
   | { kind: 'none' }
-  | { kind: 'marker'; id: string };
+  | { kind: 'marker'; id: string }
+  | { kind: 'segment'; id: string };
 
 interface EditModeState {
   clearSelection: () => void;
@@ -15,6 +16,7 @@ interface EditModeState {
   mode: EditMode;
   outlineSelection: OutlineSelection;
   selectMarker: (id: string) => void;
+  selectSegment: (id: string) => void;
   toggle: () => void;
 }
 
@@ -34,5 +36,6 @@ export const useEditModeStore = create<EditModeState>((set, get) => ({
     }
   },
   selectMarker: (id) => set({ outlineSelection: { kind: 'marker', id } }),
+  selectSegment: (id) => set({ outlineSelection: { kind: 'segment', id } }),
   clearSelection: () => set({ outlineSelection: { kind: 'none' } }),
 }));
