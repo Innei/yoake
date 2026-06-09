@@ -266,3 +266,43 @@ describe('SegmentInspector', () => {
     freezeSpy.mockRestore();
   });
 });
+
+describe('SegmentInspector grade override toggle', () => {
+  it('toggle reflects gradeOverride === undefined (off)', () => {
+    seed(makeSegment());
+    const { getByTestId } = render(<SegmentInspector />);
+    const toggle = getByTestId('segment-grade-override-toggle');
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('toggle reflects gradeOverride defined (on)', () => {
+    seed(makeSegment({ gradeOverride: {} }));
+    const { getByTestId } = render(<SegmentInspector />);
+    const toggle = getByTestId('segment-grade-override-toggle');
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('turning on calls setSegmentGradeOverride with empty object', () => {
+    seed(makeSegment());
+    const spy = vi.spyOn(
+      useClipDataStore.getState(),
+      'setSegmentGradeOverride',
+    );
+    const { getByTestId } = render(<SegmentInspector />);
+    fireEvent.click(getByTestId('segment-grade-override-toggle'));
+    expect(spy).toHaveBeenCalledWith('clip-1', 'seg-1', {});
+    spy.mockRestore();
+  });
+
+  it('turning off calls clearSegmentGradeOverride', () => {
+    seed(makeSegment({ gradeOverride: { exposure: 0.5 } }));
+    const spy = vi.spyOn(
+      useClipDataStore.getState(),
+      'clearSegmentGradeOverride',
+    );
+    const { getByTestId } = render(<SegmentInspector />);
+    fireEvent.click(getByTestId('segment-grade-override-toggle'));
+    expect(spy).toHaveBeenCalledWith('clip-1', 'seg-1');
+    spy.mockRestore();
+  });
+});

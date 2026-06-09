@@ -27,6 +27,10 @@ import { useGpuStore } from '~/state/gpuStore';
 import { usePreviewCutStore } from '~/state/previewCutStore';
 
 import {
+  pushExposureToGpu,
+  useEffectiveGradePush,
+} from './previewGradeUniforms';
+import {
   type GpuResources,
   type IntermediateTextures,
   MAX_PREVIEW_HEIGHT,
@@ -221,13 +225,17 @@ export function Preview() {
     requestRepaint();
   }, [gpuReady, parsedLut, requestRepaint, setGpuLut3d]);
 
-  useEffect(() => {
-    const gpu = gpuRef.current;
-    if (!gpu) return;
-    const buf = new Float32Array([exposure, 0, 0, 0]);
-    gpu.device.queue.writeBuffer(gpu.exposureBuf, 0, buf);
-    requestRepaint();
-  }, [exposure, gpuReady, requestRepaint]);
+  const pushExposure = useCallback(
+    (value: number) => {
+      const gpu = gpuRef.current;
+      if (!gpu) return;
+      pushExposureToGpu(gpu.device, gpu.exposureBuf, value);
+      requestRepaint();
+    },
+    [requestRepaint],
+  );
+
+  useEffectiveGradePush({ enabled: gpuReady, pushExposure });
 
   useEffect(() => {
     const gpu = gpuRef.current;

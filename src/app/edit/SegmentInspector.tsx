@@ -76,6 +76,12 @@ export function SegmentInspector() {
   const setSegmentFreezeDuration = useClipDataStore(
     (s) => s.setSegmentFreezeDuration,
   );
+  const setSegmentGradeOverride = useClipDataStore(
+    (s) => s.setSegmentGradeOverride,
+  );
+  const clearSegmentGradeOverride = useClipDataStore(
+    (s) => s.clearSegmentGradeOverride,
+  );
   const splitAtTime = useClipDataStore((s) => s.splitAtTime);
   const setCurrentTime = useEditStore((s) => s.setCurrentTime);
 
@@ -115,10 +121,13 @@ export function SegmentInspector() {
     }
   };
 
+  const overrideActive = segment.gradeOverride !== undefined;
+
   return (
     <SegmentInspectorBody
       clipId={clipId}
       key={segment.id}
+      overrideActive={overrideActive}
       segFreezeDuration={segment.freezeDurationSec}
       segIn={segment.in}
       segLabel={segment.label ?? ''}
@@ -139,6 +148,13 @@ export function SegmentInspector() {
       onFreezeDurationChange={(secs) =>
         setSegmentFreezeDuration(clipId, segment.id, secs)
       }
+      onToggleOverride={() => {
+        if (overrideActive) {
+          clearSegmentGradeOverride(clipId, segment.id);
+        } else {
+          setSegmentGradeOverride(clipId, segment.id, {});
+        }
+      }}
     />
   );
 }
@@ -153,7 +169,9 @@ interface BodyProps {
   onPlayModeChange: (mode: SegmentPlayMode) => void;
   onSpeedChange: (speed: number) => void;
   onSplit: () => void;
+  onToggleOverride: () => void;
   onUpdate: (patch: { in?: number; label?: string; out?: number }) => void;
+  overrideActive: boolean;
   segFreezeDuration?: number;
   segIn: number;
   segLabel: string;
@@ -169,10 +187,12 @@ function SegmentInspectorBody({
   segPlayMode,
   segSpeed,
   segFreezeDuration,
+  overrideActive,
   onUpdate,
   onPlayModeChange,
   onSpeedChange,
   onFreezeDurationChange,
+  onToggleOverride,
   onDelete,
   onSplit,
   onJumpIn,
@@ -421,6 +441,38 @@ function SegmentInspectorBody({
           </label>
         </PanelSection>
       ) : null}
+
+      <div className="border-t border-border" />
+
+      <PanelSection label="Grade override">
+        <label className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-text-secondary">Grade override</span>
+          <button
+            aria-checked={overrideActive}
+            data-testid="segment-grade-override-toggle"
+            role="switch"
+            type="button"
+            className={cn(
+              'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors',
+              overrideActive ? 'bg-accent' : 'bg-fill',
+            )}
+            onClick={onToggleOverride}
+          >
+            <span
+              className={cn(
+                'inline-block size-3 transform rounded-full bg-background transition-transform',
+                overrideActive ? 'translate-x-3.5' : 'translate-x-0.5',
+              )}
+            />
+          </button>
+        </label>
+        <p
+          className="text-[11px] text-text-tertiary"
+          data-testid="segment-grade-override-hint"
+        >
+          Open Grade tab to edit override values.
+        </p>
+      </PanelSection>
 
       <div className="border-t border-border" />
 
