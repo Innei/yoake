@@ -11,7 +11,7 @@ import { useEditStore } from '~/state/editStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import type { ClipMeta, LastSession } from '~/types';
 
-import { Layout } from './Layout';
+import { Shell } from './Shell';
 import { ShortcutHelp } from './ShortcutHelp';
 import { useGlobalShortcuts } from './shortcuts';
 
@@ -102,7 +102,7 @@ export function App() {
 
   return (
     <>
-      <Layout />
+      <Shell />
       <Toaster />
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
