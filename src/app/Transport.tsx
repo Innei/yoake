@@ -16,6 +16,8 @@ import { useEffect } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { cn } from '~/lib/cn';
+import { useClipDataStore } from '~/state/clipDataStore';
+import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
@@ -64,6 +66,13 @@ export function Transport() {
   const isEdit = mode === 'edit';
   const previewCut = usePreviewCutStore((s) => s.previewCut);
   const togglePreviewCut = usePreviewCutStore((s) => s.toggle);
+  const selectedClipId = useClipsStore((s) => s.selectedClipId);
+  const segmentCount = useClipDataStore((s) =>
+    selectedClipId
+      ? (s.entries[selectedClipId]?.segments.length ?? 0)
+      : 0,
+  );
+  const hasSegments = segmentCount > 0;
 
   const effectiveFps = fps && fps > 0 ? fps : FALLBACK_FPS;
   const totalFrames = frameIndex(duration, effectiveFps);
@@ -208,13 +217,18 @@ export function Transport() {
       <div className="flex h-full min-w-0 flex-1 flex-col justify-center">
         <div
           data-testid="transport-segment-row"
-          style={{ height: isEdit ? 28 : 16 }}
+          style={{ height: hasSegments ? (isEdit ? 28 : 16) : 0 }}
           className={cn(
             'relative w-full shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
             'motion-reduce:transition-none',
           )}
         >
           <SegmentLayer readOnly={!isEdit} />
+        </div>
+        <div
+          className="relative h-3 w-full shrink-0"
+          data-testid="transport-marker-row"
+        >
           <MarkerLayer readOnly={!isEdit} />
         </div>
         <div className="relative flex h-full min-h-0 w-full flex-1 items-center">
