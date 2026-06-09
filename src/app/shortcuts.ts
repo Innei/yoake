@@ -262,6 +262,31 @@ export function useGlobalShortcuts(opts: {
         return;
       }
 
+      if (e.key === 'i' || e.key === 'I' || e.key === 'o' || e.key === 'O') {
+        if (!editMode.cutMode.active) return;
+        const selectedClipId = useClipsStore.getState().selectedClipId;
+        if (!selectedClipId) return;
+        const entry = useClipDataStore.getState().entries[selectedClipId];
+        if (!entry) return;
+        const segId = editMode.cutMode.segmentId;
+        const seg = entry.segments.find((s) => s.id === segId);
+        if (!seg) return;
+        const isIn = e.key === 'i' || e.key === 'I';
+        const time = edit.currentTime;
+        if (isIn) {
+          const next = Math.min(seg.out - 1 / Math.max(1, edit.fps), time);
+          if (next < 0) return;
+          e.preventDefault();
+          useClipDataStore.getState().updateSegment(selectedClipId, segId, { in: next });
+        } else {
+          const next = Math.max(seg.in + 1 / Math.max(1, edit.fps), time);
+          if (edit.duration > 0 && next > edit.duration) return;
+          e.preventDefault();
+          useClipDataStore.getState().updateSegment(selectedClipId, segId, { out: next });
+        }
+        return;
+      }
+
       switch (e.key) {
         case '?': {
           e.preventDefault();

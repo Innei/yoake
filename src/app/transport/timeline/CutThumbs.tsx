@@ -11,11 +11,14 @@ import { useTimeline } from './context';
 type Edge = 'in' | 'out';
 
 interface DragState {
+  anchorClientX: number;
+  anchorTime: number;
   edge: Edge;
   pointerId: number;
 }
 
 const MIN_DURATION_SEC = 1 / 120;
+const FINE_SCALE = 0.1;
 
 function snap(time: number, fps: number): number {
   const step = fps > 0 ? 1 / fps : 1 / 30;
@@ -35,29 +38,30 @@ export function CutThumbs() {
   const { duration, fps, timeToPercent } = useTimeline();
   const dragRef = useRef<DragState | null>(null);
 
-  const computeTime = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      const target = event.currentTarget.parentElement as HTMLElement | null;
-      if (!target || duration <= 0) return undefined;
-      const rect = target.getBoundingClientRect();
-      if (rect.width <= 0) return undefined;
-      const ratio = (event.clientX - rect.left) / rect.width;
-      const t = Math.max(0, Math.min(duration, ratio * duration));
-      return snap(t, fps);
+  const trackRectOf = useCallback(
+    (target: HTMLElement): DOMRect | undefined => {
+      const parent = target.parentElement;
+      if (!parent) return undefined;
+      const rect = parent.getBoundingClientRect();
+      return rect.width > 0 ? rect : undefined;
     },
-    [duration, fps],
+    [],
   );
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>, edge: Edge) => {
       event.preventDefault();
       event.stopPropagation();
-      dragRef.current = { edge, pointerId: event.pointerId };
+      if (!segment) return;
+      dragRef.current = {
+        edge,
+        pointerId: event.pointerId,
+        anchorClientX: event.clientX,
+        anchorTime: edge === 'in' ? segment.in : segment.out,
+      };
       event.currentTarget.setPointerCapture(event.pointerId);
       setPlaying(false);
-      if (segment) {
-        setCurrentTime(edge === 'in' ? segment.in : segment.out);
-      }
+      setCurrentTime(edge === 'in' ? segment.in : segment.out);
     },
     [segment, setCurrentTime, setPlaying],
   );
@@ -66,27 +70,32 @@ export function CutThumbs() {
     (event: React.PointerEvent<HTMLDivElement>) => {
       const drag = dragRef.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
-      if (!segment || !clipId) return;
+      if (!segment || !clipId || duration <= 0) return;
       event.stopPropagation();
-      const t = computeTime(event);
-      if (t === undefined) return;
+      const rect = trackRectOf(event.currentTarget);
+      if (!rect) return;
+      const dx = event.clientX - drag.anchorClientX;
+      const secPerPx = duration / rect.width;
+      const scale = event.shiftKey ? FINE_SCALE : 1;
+      const raw = drag.anchorTime + dx * secPerPx * scale;
+      const target = snap(Math.max(0, Math.min(duration, raw)), fps);
       if (drag.edge === 'in') {
         const limit = segment.out - MIN_DURATION_SEC;
-        const next = Math.min(limit, Math.max(0, t));
+        const next = Math.min(limit, target);
         if (Math.abs(next - segment.in) > 1e-4) {
           updateSegment(clipId, segment.id, { in: next });
           setCurrentTime(next);
         }
       } else {
         const limit = segment.in + MIN_DURATION_SEC;
-        const next = Math.max(limit, Math.min(duration, t));
+        const next = Math.max(limit, target);
         if (Math.abs(next - segment.out) > 1e-4) {
           updateSegment(clipId, segment.id, { out: next });
           setCurrentTime(next);
         }
       }
     },
-    [clipId, computeTime, duration, segment, setCurrentTime, updateSegment],
+    [clipId, duration, fps, segment, setCurrentTime, trackRectOf, updateSegment],
   );
 
   const handlePointerUp = useCallback(
