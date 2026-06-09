@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { cn } from '~/lib/cn';
 import { useEditModeStore } from '~/state/editModeStore';
@@ -22,18 +22,11 @@ export function EditRightPanel() {
   const outlineSelection = useEditModeStore((s) => s.outlineSelection);
   const navRef = useRef<HTMLDivElement | null>(null);
 
-  const selectionKey =
-    outlineSelection.kind === 'none'
-      ? null
-      : `${outlineSelection.kind}:${outlineSelection.id}`;
-  const lastSelectionKeyRef = useRef<string | null>(selectionKey);
-
-  if (selectionKey !== lastSelectionKeyRef.current) {
-    lastSelectionKeyRef.current = selectionKey;
-    if (selectionKey !== null && active !== 'inspect') {
+  useEffect(() => {
+    if (outlineSelection.kind !== 'none') {
       setActive('inspect');
     }
-  }
+  }, [outlineSelection]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
