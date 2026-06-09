@@ -15,8 +15,11 @@ import { useEffect } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { cn } from '~/lib/cn';
+import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
+
+import { SegmentLayer } from './transport/SegmentLayer';
 
 const FALLBACK_FPS = 30;
 
@@ -53,6 +56,8 @@ export function Transport() {
   const inspectorCollapsed = useLayoutStore((s) => s.inspectorCollapsed);
   const toggleInspector = useLayoutStore((s) => s.toggleInspector);
   const clipsWidth = useLayoutStore((s) => s.clipsWidth);
+  const mode = useEditModeStore((s) => s.mode);
+  const isEdit = mode === 'edit';
 
   const effectiveFps = fps && fps > 0 ? fps : FALLBACK_FPS;
   const totalFrames = frameIndex(duration, effectiveFps);
@@ -112,7 +117,18 @@ export function Transport() {
   const disabled = duration <= 0;
 
   return (
-    <div className="flex h-full items-center gap-3 pr-3">
+    <div className="flex h-full flex-col">
+      <div
+        data-testid="transport-segment-row"
+        style={{ height: isEdit ? 28 : 16 }}
+        className={cn(
+          'shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
+          'motion-reduce:transition-none',
+        )}
+      >
+        <SegmentLayer readOnly={!isEdit} />
+      </div>
+      <div className="flex min-h-0 flex-1 items-center gap-3 pr-3">
       <div
         className="flex shrink-0 flex-col justify-center px-3 leading-tight"
         style={{ width: clipsWidth }}
@@ -243,6 +259,7 @@ export function Transport() {
           <PanelRightClose aria-hidden className="size-4" />
         )}
       </button>
+      </div>
     </div>
   );
 }
