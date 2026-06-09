@@ -19,6 +19,7 @@ import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 import { useLayoutStore } from '~/state/layoutStore';
 
+import { MarkerLayer } from './transport/MarkerLayer';
 import { SegmentLayer } from './transport/SegmentLayer';
 
 const FALLBACK_FPS = 30;
@@ -186,11 +187,12 @@ export function Transport() {
           data-testid="transport-segment-row"
           style={{ height: isEdit ? 28 : 16 }}
           className={cn(
-            'w-full shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
+            'relative w-full shrink-0 overflow-hidden transition-[height] duration-200 ease-in-out',
             'motion-reduce:transition-none',
           )}
         >
           <SegmentLayer readOnly={!isEdit} />
+          <MarkerLayer readOnly={!isEdit} />
         </div>
         <div className="relative flex h-full min-h-0 w-full flex-1 items-center">
         <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-fill" />

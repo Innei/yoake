@@ -61,10 +61,16 @@ export const SHORTCUTS: { items: Shortcut[]; section: string }[] = [
         description: 'Deselect outline item · exit edit when nothing selected',
       },
       { keys: 'M', description: 'Add marker at current time (edit mode)' },
-      { keys: 'Delete', description: 'Delete selected marker (edit mode)' },
+      { keys: 'S', description: 'Split at playhead or add a new segment (edit mode)' },
+      {
+        keys: 'Delete',
+        description: 'Delete selected marker or segment (edit mode)',
+      },
     ],
   },
 ];
+
+const SPLIT_PAD_SEC = 1;
 
 function isEditable(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -222,16 +228,57 @@ export function useGlobalShortcuts(opts: {
         return;
       }
 
-      if (e.key === 'Delete') {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         if (editMode.mode !== 'edit') return;
-        if (editMode.outlineSelection.kind !== 'marker') return;
+        const selectedClipId = useClipsStore.getState().selectedClipId;
+        if (!selectedClipId) return;
+        if (editMode.outlineSelection.kind === 'marker') {
+          e.preventDefault();
+          useClipDataStore
+            .getState()
+            .removeMarker(selectedClipId, editMode.outlineSelection.id);
+          useEditModeStore.getState().clearSelection();
+          return;
+        }
+        if (editMode.outlineSelection.kind === 'segment') {
+          e.preventDefault();
+          useClipDataStore
+            .getState()
+            .removeSegment(selectedClipId, editMode.outlineSelection.id);
+          useEditModeStore.getState().clearSelection();
+          return;
+        }
+        return;
+      }
+
+      if (e.key === 's' || e.key === 'S') {
+        if (editMode.mode !== 'edit') return;
         const selectedClipId = useClipsStore.getState().selectedClipId;
         if (!selectedClipId) return;
         e.preventDefault();
-        useClipDataStore
-          .getState()
-          .removeMarker(selectedClipId, editMode.outlineSelection.id);
-        useEditModeStore.getState().clearSelection();
+        const dataStore = useClipDataStore.getState();
+        const time = edit.currentTime;
+        const result = dataStore.splitAtTime(selectedClipId, time);
+        if (result !== undefined) {
+          toast.info('Segment split', { durationMs: 1200 });
+          return;
+        }
+        const segments =
+          dataStore.entries[selectedClipId]?.segments ?? [];
+        if (segments.length === 0) {
+          const inSec = Math.max(0, time - SPLIT_PAD_SEC);
+          const outSec = Math.min(
+            edit.duration > 0 ? edit.duration : time + SPLIT_PAD_SEC,
+            time + SPLIT_PAD_SEC,
+          );
+          if (outSec > inSec) {
+            const id = dataStore.addSegment(selectedClipId, inSec, outSec);
+            if (id) {
+              useEditModeStore.getState().selectSegment(id);
+              toast.info('Segment added', { durationMs: 1200 });
+            }
+          }
+        }
         return;
       }
 

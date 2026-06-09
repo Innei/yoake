@@ -1,5 +1,11 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '~/components/ui/context-menu';
 import type { Segment } from '~/fs/clipSidecar';
 import { cn } from '~/lib/cn';
 import { useClipDataStore } from '~/state/clipDataStore';
@@ -53,10 +59,21 @@ export function SegmentLayer({ readOnly = false }: Props) {
   const duration = useEditStore((s) => s.duration);
   const fps = useEditStore((s) => s.fps);
   const updateSegment = useClipDataStore((s) => s.updateSegment);
+  const removeSegment = useClipDataStore((s) => s.removeSegment);
+  const splitAtTime = useClipDataStore((s) => s.splitAtTime);
+  const addMarker = useClipDataStore((s) => s.addMarker);
+  const setCurrentTime = useEditStore((s) => s.setCurrentTime);
   const selectSegment = useEditModeStore((s) => s.selectSegment);
+  const selectMarker = useEditModeStore((s) => s.selectMarker);
 
   const trackRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
+  const [emptyClickTime, setEmptyClickTime] = useState<number | undefined>(
+    undefined,
+  );
+  const [bandClickTime, setBandClickTime] = useState<
+    { segId: string; time: number } | undefined
+  >(undefined);
 
   const computeTimeFromClientX = useCallback(
     (clientX: number): number | undefined => {
@@ -129,12 +146,76 @@ export function SegmentLayer({ readOnly = false }: Props) {
     selectSegment(segId);
   };
 
+  const handleBandContextMenu = (event: React.MouseEvent, segId: string) => {
+    if (readOnly) return;
+    event.stopPropagation();
+    const time = computeTimeFromClientX(event.clientX);
+    setBandClickTime({ segId, time: time ?? 0 });
+  };
+
+  const handleEmptyContextMenu = (event: React.MouseEvent) => {
+    if (readOnly) return;
+    const time = computeTimeFromClientX(event.clientX);
+    setEmptyClickTime(time);
+  };
+
+  const jumpTo = (time: number) => {
+    setCurrentTime(time);
+  };
+
+  const onSplitAtBand = () => {
+    if (!clipId || !bandClickTime) return;
+    splitAtTime(clipId, bandClickTime.time);
+  };
+
+  const onJumpToIn = () => {
+    if (!bandClickTime) return;
+    const seg = segments.find((s) => s.id === bandClickTime.segId);
+    if (!seg) return;
+    jumpTo(seg.in);
+  };
+
+  const onJumpToOut = () => {
+    if (!bandClickTime) return;
+    const seg = segments.find((s) => s.id === bandClickTime.segId);
+    if (!seg) return;
+    jumpTo(seg.out);
+  };
+
+  const onDeleteSegment = () => {
+    if (!clipId || !bandClickTime) return;
+    removeSegment(clipId, bandClickTime.segId);
+    useEditModeStore.getState().clearSelection();
+  };
+
+  const onAddMarkerHere = () => {
+    if (!clipId || emptyClickTime === undefined) return;
+    const id = addMarker(clipId, emptyClickTime, '');
+    selectMarker(id);
+  };
+
+  const emptyMenu = !readOnly ? (
+    <ContextMenu>
+      <ContextMenuTrigger
+        className="absolute inset-0 z-0"
+        data-testid="transport-segment-empty-trigger"
+        onContextMenu={handleEmptyContextMenu}
+      />
+      <ContextMenuContent data-testid="transport-empty-context-menu">
+        <ContextMenuItem onClick={onAddMarkerHere}>
+          Add marker here
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  ) : null;
+
   return (
     <div
       className="relative h-full w-full"
       data-testid="transport-segment-layer"
       ref={trackRef}
     >
+      {emptyMenu}
       {duration > 0
         ? segments.map((seg) => (
             <SegmentBand
@@ -143,8 +224,13 @@ export function SegmentLayer({ readOnly = false }: Props) {
               readOnly={readOnly}
               segment={seg}
               onBandClick={(event) => handleBandClick(event, seg.id)}
+              onBandContextMenu={(event) => handleBandContextMenu(event, seg.id)}
+              onDeleteSegment={onDeleteSegment}
               onHandlePointerMove={handlePointerMove}
               onHandlePointerUp={handlePointerUp}
+              onJumpToIn={onJumpToIn}
+              onJumpToOut={onJumpToOut}
+              onSplitHere={onSplitAtBand}
               onHandlePointerDown={(event, edge) =>
                 handlePointerDown(event, seg.id, edge)
               }
@@ -158,12 +244,17 @@ export function SegmentLayer({ readOnly = false }: Props) {
 interface BandProps {
   duration: number;
   onBandClick: (event: React.MouseEvent) => void;
+  onBandContextMenu: (event: React.MouseEvent) => void;
+  onDeleteSegment: () => void;
   onHandlePointerDown: (
     event: React.PointerEvent<HTMLDivElement>,
     edge: Edge,
   ) => void;
   onHandlePointerMove: (event: React.PointerEvent<HTMLDivElement>) => void;
   onHandlePointerUp: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onJumpToIn: () => void;
+  onJumpToOut: () => void;
+  onSplitHere: () => void;
   readOnly: boolean;
   segment: Segment;
 }
@@ -173,9 +264,14 @@ function SegmentBand({
   duration,
   readOnly,
   onBandClick,
+  onBandContextMenu,
   onHandlePointerDown,
   onHandlePointerMove,
   onHandlePointerUp,
+  onSplitHere,
+  onJumpToIn,
+  onJumpToOut,
+  onDeleteSegment,
 }: BandProps) {
   const leftPct = (segment.in / duration) * 100;
   const widthPct = ((segment.out - segment.in) / duration) * 100;
@@ -185,15 +281,8 @@ function SegmentBand({
       : '1x';
   const title = `${formatTime(segment.in)} - ${formatTime(segment.out)}  ${segment.playMode}  ${speedLabel}`;
 
-  return (
-    <div
-      className="absolute inset-y-1 flex items-stretch"
-      data-testid={`transport-segment-band-${segment.id}`}
-      style={{
-        left: `${leftPct}%`,
-        width: `${widthPct}%`,
-      }}
-    >
+  const bandInner = (
+    <>
       {!readOnly ? (
         <div
           aria-label="Trim segment start"
@@ -230,6 +319,43 @@ function SegmentBand({
           onPointerUp={onHandlePointerUp}
         />
       ) : null}
-    </div>
+    </>
+  );
+
+  if (readOnly) {
+    return (
+      <div
+        className="absolute inset-y-1 z-10 flex items-stretch"
+        data-testid={`transport-segment-band-${segment.id}`}
+        style={{
+          left: `${leftPct}%`,
+          width: `${widthPct}%`,
+        }}
+      >
+        {bandInner}
+      </div>
+    );
+  }
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger
+        className="absolute inset-y-1 z-10 flex items-stretch"
+        data-testid={`transport-segment-band-${segment.id}`}
+        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+        onContextMenu={onBandContextMenu}
+      >
+        {bandInner}
+      </ContextMenuTrigger>
+      <ContextMenuContent data-testid={`transport-segment-menu-${segment.id}`}>
+        <ContextMenuItem onClick={onSplitHere}>Split here</ContextMenuItem>
+        <ContextMenuItem onClick={onJumpToIn}>Jump to in</ContextMenuItem>
+        <ContextMenuItem onClick={onJumpToOut}>Jump to out</ContextMenuItem>
+        <ContextMenuItem destructive onClick={onDeleteSegment}>
+          Delete segment
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
+
