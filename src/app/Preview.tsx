@@ -305,8 +305,45 @@ export function Preview() {
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    let durationProbed = false;
+    let pendingSeekListener: (() => void) | null = null;
+    const publishDuration = () => {
+      const d = video.duration;
+      if (Number.isFinite(d) && d > 0) setStoreDuration(d);
+    };
+    const probeDurationOnce = () => {
+      if (durationProbed) return;
+      durationProbed = true;
+      const wasMuted = video.muted;
+      const prevTime = video.currentTime;
+      video.muted = true;
+      try {
+        video.currentTime = Number.MAX_SAFE_INTEGER;
+      } catch {
+        /* some browsers throw on absurd seeks — fall back to durationchange */
+      }
+      const onSeeked = () => {
+        if (pendingSeekListener) {
+          video.removeEventListener('seeked', pendingSeekListener);
+          pendingSeekListener = null;
+        }
+        publishDuration();
+        try {
+          video.currentTime = prevTime;
+        } catch {
+          /* ignore */
+        }
+        video.muted = wasMuted;
+      };
+      pendingSeekListener = onSeeked;
+      video.addEventListener('seeked', onSeeked);
+    };
     const onLoadedMetadata = () => {
-      setStoreDuration(Number.isFinite(video.duration) ? video.duration : 0);
+      publishDuration();
+      probeDurationOnce();
+    };
+    const onDurationChange = () => {
+      publishDuration();
     };
     const onLoadedData = () => {
       requestRepaint();
@@ -321,16 +358,22 @@ export function Preview() {
       setStorePlaying(false);
     };
     video.addEventListener('loadedmetadata', onLoadedMetadata);
+    video.addEventListener('durationchange', onDurationChange);
     video.addEventListener('loadeddata', onLoadedData);
     video.addEventListener('timeupdate', onTimeUpdate);
     video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
     return () => {
       video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('durationchange', onDurationChange);
       video.removeEventListener('loadeddata', onLoadedData);
       video.removeEventListener('timeupdate', onTimeUpdate);
       video.removeEventListener('play', onPlay);
       video.removeEventListener('pause', onPause);
+      if (pendingSeekListener) {
+        video.removeEventListener('seeked', pendingSeekListener);
+        pendingSeekListener = null;
+      }
     };
   }, [requestRepaint, setStoreCurrentTime, setStoreDuration, setStorePlaying]);
 
