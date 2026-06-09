@@ -4,6 +4,7 @@ import { cn } from '~/lib/cn';
 import { useClipDataStore } from '~/state/clipDataStore';
 import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
+import { useEditStore } from '~/state/editStore';
 
 import { useTimeline } from './context';
 
@@ -29,6 +30,8 @@ export function CutThumbs() {
     return s.entries[clipId]?.segments.find((seg) => seg.id === cutMode.segmentId);
   });
   const updateSegment = useClipDataStore((s) => s.updateSegment);
+  const setCurrentTime = useEditStore((s) => s.setCurrentTime);
+  const setPlaying = useEditStore((s) => s.setPlaying);
   const { duration, fps, timeToPercent } = useTimeline();
   const dragRef = useRef<DragState | null>(null);
 
@@ -51,8 +54,12 @@ export function CutThumbs() {
       event.stopPropagation();
       dragRef.current = { edge, pointerId: event.pointerId };
       event.currentTarget.setPointerCapture(event.pointerId);
+      setPlaying(false);
+      if (segment) {
+        setCurrentTime(edge === 'in' ? segment.in : segment.out);
+      }
     },
-    [],
+    [segment, setCurrentTime, setPlaying],
   );
 
   const handlePointerMove = useCallback(
@@ -68,16 +75,18 @@ export function CutThumbs() {
         const next = Math.min(limit, Math.max(0, t));
         if (Math.abs(next - segment.in) > 1e-4) {
           updateSegment(clipId, segment.id, { in: next });
+          setCurrentTime(next);
         }
       } else {
         const limit = segment.in + MIN_DURATION_SEC;
         const next = Math.max(limit, Math.min(duration, t));
         if (Math.abs(next - segment.out) > 1e-4) {
           updateSegment(clipId, segment.id, { out: next });
+          setCurrentTime(next);
         }
       }
     },
-    [clipId, computeTime, duration, segment, updateSegment],
+    [clipId, computeTime, duration, segment, setCurrentTime, updateSegment],
   );
 
   const handlePointerUp = useCallback(
