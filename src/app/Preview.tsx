@@ -373,6 +373,7 @@ export function Preview() {
       requestRepaint();
     };
     const onTimeUpdate = () => {
+      if (!useEditStore.getState().isPlaying) return;
       setStoreCurrentTime(video.currentTime);
     };
     const onPlay = () => {
