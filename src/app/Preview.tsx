@@ -3,6 +3,7 @@
 import { Aperture, Film, ImageOff, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { probeMp4 } from '~/decode/mp4Probe';
 import { VideoFrameSource } from '~/decode/VideoFrameSource';
 import { probeHdrCaps } from '~/gpu/caps';
 import { getDevice } from '~/gpu/Device';
@@ -265,6 +266,15 @@ export function Preview() {
         video.src = url;
         video.load();
         frameSource.attach(video);
+        void probeMp4(file)
+          .then((meta) => {
+            if (cancelled) return;
+            if (meta.durationSec > 0) setStoreDuration(meta.durationSec);
+            if (meta.fps > 0) setStoreFps(meta.fps);
+          })
+          .catch(() => {
+            /* MP4 probe is best-effort — fall back to <video> events */
+          });
       } catch (cause) {
         if (cancelled) return;
         setInitError(cause instanceof Error ? cause.message : String(cause));
@@ -274,7 +284,7 @@ export function Preview() {
     return () => {
       cancelled = true;
     };
-  }, [selectedClip, gpuReady]);
+  }, [selectedClip, gpuReady, setStoreDuration, setStoreFps]);
 
   useEffect(() => {
     if (!gpuReady) return;
