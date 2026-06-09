@@ -63,7 +63,7 @@ export const useLayoutStore = create<LayoutState>()(
         set((s) => ({ inspectorCollapsed: !s.inspectorCollapsed })),
     }),
     {
-      name: 'dji-lut.layout',
+      name: 'yoake.layout',
       version: 1,
       migrate: (persisted, fromVersion) => {
         if (fromVersion >= 1) return persisted as LayoutState;

@@ -1,8 +1,8 @@
-# dji-lut
+# Yoake
 
-A local-only web tool for restoring DJI **D-Log M** footage and exporting **Ultra HDR JPEG** stills that bloom in macOS Photos and on iPhone.
+> **Develop the dawn.** A local-only web darkroom that restores DJI **D-Log M** footage and exports **Ultra HDR JPEG** stills that bloom in macOS Photos and on iPhone.
 
-Open a DJI clip, apply the official D-Log M → Rec.709 `.cube` LUT, dial in exposure, and save the current frame as an ISO 21496-1 Ultra HDR JPEG — entirely client-side, no upload step.
+Yoake (よあけ — "dawn") opens a DJI clip, applies the official D-Log M → Rec.709 `.cube` LUT, dials in exposure, and saves the current frame as an ISO 21496-1 Ultra HDR JPEG — entirely client-side, no upload step.
 
 ## Features
 

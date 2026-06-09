@@ -57,7 +57,7 @@ export async function encodeUltraHdrJpeg(
   new Float32Array(hdrBuf).set(input.hdrLinearF32);
 
   const result = await encoderModule.encodeUltraHdr(
-    `dji-lut-${Date.now()}`,
+    `yoake-${Date.now()}`,
     sdrJpegBuf,
     hdrBuf,
     {
