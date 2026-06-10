@@ -1,69 +1,106 @@
-import type { InputHTMLAttributes } from 'react';
+import { Slider as Base } from '@base-ui/react/slider';
 
 import { cn } from '~/lib/cn';
 
-interface SliderProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
+interface SliderProps {
+  'aria-label'?: string;
   bipolar?: boolean;
+  className?: string;
+  disabled?: boolean;
   max: number;
   min: number;
+  onDoubleClick?: () => void;
+  onValueChange: (value: number) => void;
+  onValueCommitted?: (value: number) => void;
+  step?: number;
+  thumbClassName?: string;
+  trackClassName?: string;
   value: number;
 }
 
+function pickScalar(v: number | readonly number[]): number {
+  return typeof v === 'number' ? v : (v[0] ?? 0);
+}
+
 export function Slider({
-  className,
-  min,
-  max,
-  value,
+  'aria-label': ariaLabel,
   bipolar = false,
-  ...props
+  className,
+  disabled,
+  max,
+  min,
+  onDoubleClick,
+  onValueChange,
+  onValueCommitted,
+  step,
+  thumbClassName,
+  trackClassName,
+  value,
 }: SliderProps) {
   const range = max - min || 1;
   const ratio = Math.min(1, Math.max(0, (value - min) / range));
   const pct = ratio * 100;
-
-  const fillStyle: React.CSSProperties = bipolar
-    ? (() => {
-        const zero = ((0 - min) / range) * 100;
-        const left = Math.min(zero, pct);
-        const width = Math.abs(pct - zero);
-        return { left: `${left}%`, width: `${width}%` };
-      })()
-    : { left: 0, width: `${pct}%` };
+  const zeroPct = ((0 - min) / range) * 100;
+  const bipolarStyle = bipolar
+    ? {
+        left: `${Math.min(zeroPct, pct)}%`,
+        width: `${Math.abs(pct - zeroPct)}%`,
+      }
+    : undefined;
 
   return (
-    <div className={cn('group relative flex h-5 items-center', className)}>
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-fill" />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-1/2 h-1 -translate-y-1/2 rounded-full bg-accent"
-        style={fillStyle}
-      />
-      {bipolar ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 h-2 w-px -translate-y-1/2 bg-border"
-          style={{ left: `${((0 - min) / range) * 100}%` }}
+    <Base.Root
+      className={cn('relative flex h-5 w-full items-center', className)}
+      disabled={disabled}
+      max={max}
+      min={min}
+      step={step}
+      value={value}
+      onValueChange={(next) => onValueChange(pickScalar(next))}
+      onValueCommitted={
+        onValueCommitted
+          ? (next) => onValueCommitted(pickScalar(next))
+          : undefined
+      }
+    >
+      <Base.Control
+        className="group relative flex h-full w-full items-center"
+        onDoubleClick={onDoubleClick}
+      >
+        <Base.Track
+          className={cn(
+            'h-1 w-full rounded-full bg-fill',
+            trackClassName,
+          )}
+        >
+          {bipolar ? (
+            <div
+              aria-hidden
+              className="absolute inset-y-0 rounded-full bg-accent"
+              style={bipolarStyle}
+            />
+          ) : (
+            <Base.Indicator className="h-full rounded-full bg-accent" />
+          )}
+        </Base.Track>
+        {bipolar ? (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 h-2 w-px -translate-y-1/2 bg-border"
+            style={{ left: `${zeroPct}%` }}
+          />
+        ) : null}
+        <Base.Thumb
+          getAriaLabel={ariaLabel ? () => ariaLabel : undefined}
+          className={cn(
+            'size-4 rounded-full border border-border bg-background shadow-xs',
+            'outline-none transition-transform active:scale-110',
+            'focus-visible:ring-2 focus-visible:ring-accent/40',
+            disabled && 'pointer-events-none opacity-40',
+            thumbClassName,
+          )}
         />
-      ) : null}
-      <input
-        max={max}
-        min={min}
-        type="range"
-        value={value}
-        className={cn(
-          'relative z-10 h-5 w-full cursor-pointer appearance-none bg-transparent',
-          '[&::-webkit-slider-runnable-track]:h-5 [&::-webkit-slider-runnable-track]:bg-transparent',
-          '[&::-webkit-slider-thumb]:size-4 [&::-webkit-slider-thumb]:appearance-none',
-          '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-border',
-          '[&::-webkit-slider-thumb]:bg-background [&::-webkit-slider-thumb]:shadow-xs',
-          '[&::-webkit-slider-thumb]:transition-transform [&:active::-webkit-slider-thumb]:scale-110',
-          '[&::-moz-range-thumb]:size-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border',
-          '[&::-moz-range-thumb]:border-border [&::-moz-range-thumb]:bg-background',
-          'focus-visible:outline-none [&:focus-visible::-webkit-slider-thumb]:ring-2 [&:focus-visible::-webkit-slider-thumb]:ring-accent/40',
-        )}
-        {...props}
-      />
-    </div>
+      </Base.Control>
+    </Base.Root>
   );
 }

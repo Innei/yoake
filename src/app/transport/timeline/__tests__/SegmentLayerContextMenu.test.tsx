@@ -8,6 +8,7 @@ import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 
 import { SegmentLayer } from '../SegmentLayer';
+import { TimelineTestProvider } from './testHelpers';
 
 const fileHandle = {} as FileSystemFileHandle;
 
@@ -80,7 +81,11 @@ afterEach(() => {
 describe('SegmentLayer context menu', () => {
   it('right-click on a band opens the 4-item menu', async () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
 
     fireEvent.contextMenu(band, { clientX: 50 });
@@ -95,11 +100,14 @@ describe('SegmentLayer context menu', () => {
     seedClip([makeSegment({ id: 'a', in: 0, out: 6 })], 10, 30);
     const splitSpy = vi.spyOn(useClipDataStore.getState(), 'splitAtTime');
 
-    const { getByTestId } = render(<SegmentLayer />);
-    const layer = getByTestId('transport-segment-layer') as HTMLDivElement;
-    mockRect(layer, 200, 0);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10} fps={30}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
+    const track = getByTestId('timeline-test-track');
+    mockRect(track, 200, 0);
     const band = getByTestId('transport-segment-band-a');
-    mockRect(band as HTMLElement, 120, 0);
 
     fireEvent.contextMenu(band, { clientX: 80 });
 
@@ -116,7 +124,11 @@ describe('SegmentLayer context menu', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
     const removeSpy = vi.spyOn(useClipDataStore.getState(), 'removeSegment');
 
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
     fireEvent.contextMenu(band, { clientX: 50 });
 
@@ -128,7 +140,13 @@ describe('SegmentLayer context menu', () => {
 
   it('right-click on empty area opens "Add marker here"', async () => {
     seedClip([], 10);
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
+    const track = getByTestId('timeline-test-track');
+    mockRect(track, 200, 0);
     const trigger = getByTestId('transport-segment-empty-trigger');
 
     fireEvent.contextMenu(trigger, { clientX: 50 });
@@ -140,11 +158,14 @@ describe('SegmentLayer context menu', () => {
     seedClip([], 10);
     const addSpy = vi.spyOn(useClipDataStore.getState(), 'addMarker');
 
-    const { getByTestId } = render(<SegmentLayer />);
-    const layer = getByTestId('transport-segment-layer') as HTMLDivElement;
-    mockRect(layer, 200, 0);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10} fps={30}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
+    const track = getByTestId('timeline-test-track');
+    mockRect(track, 200, 0);
     const trigger = getByTestId('transport-segment-empty-trigger');
-    mockRect(trigger as HTMLElement, 200, 0);
     fireEvent.contextMenu(trigger, { clientX: 100 });
 
     const item = await screen.findByText('Add marker here');
@@ -160,7 +181,11 @@ describe('SegmentLayer context menu', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
     useEditModeStore.setState({ mode: 'view' });
 
-    const { getByTestId } = render(<SegmentLayer readOnly />);
+    const { getByTestId } = render(
+      <TimelineTestProvider readOnly duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
     fireEvent.contextMenu(band, { clientX: 50 });
 
@@ -170,7 +195,11 @@ describe('SegmentLayer context menu', () => {
 
   it('right-click menu includes Set playMode items', async () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
 
     fireEvent.contextMenu(band, { clientX: 50 });
@@ -185,7 +214,11 @@ describe('SegmentLayer context menu', () => {
       [makeSegment({ id: 'a', in: 1, out: 3, playMode: 'normal' })],
       10,
     );
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
 
     fireEvent.contextMenu(band, { clientX: 50 });
@@ -210,7 +243,11 @@ describe('SegmentLayer context menu', () => {
       ],
       10,
     );
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
 
     fireEvent.contextMenu(band, { clientX: 50 });
@@ -224,7 +261,11 @@ describe('SegmentLayer context menu', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
     const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentPlayMode');
 
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
     fireEvent.contextMenu(band, { clientX: 50 });
 
@@ -239,7 +280,11 @@ describe('SegmentLayer context menu', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
     const spy = vi.spyOn(useClipDataStore.getState(), 'setSegmentSpeed');
 
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a');
     fireEvent.contextMenu(band, { clientX: 50 });
 

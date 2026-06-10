@@ -1,11 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuSeparator,
+  type ContextMenuItemDef,
   ContextMenuTrigger,
+  showContextMenu,
 } from '~/components/ui/context-menu';
 import type { Segment, SegmentPlayMode } from '~/fs/clipSidecar';
 import { cn } from '~/lib/cn';
@@ -14,9 +12,7 @@ import { useClipsStore } from '~/state/clipsStore';
 import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 
-interface Props {
-  readOnly?: boolean;
-}
+import { useTimeline } from './context';
 
 const EMPTY_SEGMENTS: readonly Segment[] = [];
 
@@ -54,13 +50,12 @@ interface DragState {
   segId: string;
 }
 
-export function SegmentLayer({ readOnly = false }: Props) {
+export function SegmentLayer() {
+  const { clientXToTime, duration, fps, readOnly, timeToPercent } = useTimeline();
   const clipId = useClipsStore((s) => s.selectedClipId);
   const segments = useClipDataStore((s) =>
     clipId ? (s.entries[clipId]?.segments ?? EMPTY_SEGMENTS) : EMPTY_SEGMENTS,
   );
-  const duration = useEditStore((s) => s.duration);
-  const fps = useEditStore((s) => s.fps);
   const updateSegment = useClipDataStore((s) => s.updateSegment);
   const removeSegment = useClipDataStore((s) => s.removeSegment);
   const setSegmentPlayMode = useClipDataStore((s) => s.setSegmentPlayMode);
@@ -70,27 +65,16 @@ export function SegmentLayer({ readOnly = false }: Props) {
   const setCurrentTime = useEditStore((s) => s.setCurrentTime);
   const selectSegment = useEditModeStore((s) => s.selectSegment);
   const selectMarker = useEditModeStore((s) => s.selectMarker);
+  const clearSelection = useEditModeStore((s) => s.clearSelection);
 
-  const trackRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
-  const [emptyClickTime, setEmptyClickTime] = useState<number | undefined>(
-    undefined,
-  );
-  const [bandClickTime, setBandClickTime] = useState<
-    { segId: string; time: number } | undefined
-  >(undefined);
 
-  const computeTimeFromClientX = useCallback(
+  const snapTime = useCallback(
     (clientX: number): number | undefined => {
-      const track = trackRef.current;
-      if (!track || duration <= 0) return undefined;
-      const rect = track.getBoundingClientRect();
-      if (rect.width <= 0) return undefined;
-      const ratio = (clientX - rect.left) / rect.width;
-      const raw = clampNumber(ratio * duration, 0, duration);
-      return snap(raw, fps);
+      const t = clientXToTime(clientX);
+      return t === undefined ? undefined : snap(t, fps);
     },
-    [duration, fps],
+    [clientXToTime, fps],
   );
 
   const handlePointerDown = (
@@ -98,8 +82,7 @@ export function SegmentLayer({ readOnly = false }: Props) {
     segId: string,
     edge: Edge,
   ) => {
-    if (readOnly) return;
-    if (!clipId) return;
+    if (readOnly || !clipId) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -108,9 +91,8 @@ export function SegmentLayer({ readOnly = false }: Props) {
 
   const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    if (!clipId) return;
-    const next = computeTimeFromClientX(event.clientX);
+    if (!drag || drag.pointerId !== event.pointerId || !clipId) return;
+    const next = snapTime(event.clientX);
     if (next === undefined) return;
     const list = useClipDataStore.getState().entries[clipId]?.segments ?? [];
     const index = list.findIndex((seg) => seg.id === drag.segId);
@@ -151,86 +133,99 @@ export function SegmentLayer({ readOnly = false }: Props) {
     selectSegment(segId);
   };
 
-  const handleBandContextMenu = (event: React.MouseEvent, segId: string) => {
+  const buildBandMenu = (
+    seg: Segment,
+    clickTime: number,
+  ): ContextMenuItemDef[] => {
+    const speedItems: ContextMenuItemDef[] =
+      seg.playMode === 'normal' || seg.playMode === 'reverse'
+        ? [
+            { kind: 'separator' },
+            { kind: 'group', label: 'Set speed' },
+            ...[0.25, 0.5, 1, 2, 4].map<ContextMenuItemDef>((s) => ({
+              label: `${s}x`,
+              onSelect: () => {
+                if (clipId) setSegmentSpeed(clipId, seg.id, s);
+              },
+            })),
+          ]
+        : [];
+    return [
+      {
+        label: 'Split here',
+        onSelect: () => {
+          if (clipId) splitAtTime(clipId, clickTime);
+        },
+      },
+      { label: 'Jump to in', onSelect: () => setCurrentTime(seg.in) },
+      { label: 'Jump to out', onSelect: () => setCurrentTime(seg.out) },
+      { kind: 'separator' },
+      { kind: 'group', label: 'Set playMode' },
+      ...(['normal', 'reverse', 'freeze'] as SegmentPlayMode[]).map<ContextMenuItemDef>(
+        (m) => ({
+          label: m.charAt(0).toUpperCase() + m.slice(1),
+          onSelect: () => {
+            if (clipId) setSegmentPlayMode(clipId, seg.id, m);
+          },
+        }),
+      ),
+      ...speedItems,
+      { kind: 'separator' },
+      {
+        destructive: true,
+        label: 'Delete segment',
+        onSelect: () => {
+          if (!clipId) return;
+          removeSegment(clipId, seg.id);
+          clearSelection();
+        },
+      },
+    ];
+  };
+
+  const handleBandContextMenu = (
+    event: React.MouseEvent<HTMLElement>,
+    seg: Segment,
+  ) => {
     if (readOnly) return;
+    event.preventDefault();
     event.stopPropagation();
-    const time = computeTimeFromClientX(event.clientX);
-    setBandClickTime({ segId, time: time ?? 0 });
+    const time = snapTime(event.clientX) ?? 0;
+    showContextMenu(buildBandMenu(seg, time), { event });
   };
 
-  const handleEmptyContextMenu = (event: React.MouseEvent) => {
+  const handleEmptyContextMenu = (event: React.MouseEvent<HTMLElement>) => {
     if (readOnly) return;
-    const time = computeTimeFromClientX(event.clientX);
-    setEmptyClickTime(time);
+    event.preventDefault();
+    const time = snapTime(event.clientX);
+    if (time === undefined) return;
+    showContextMenu(
+      [
+        {
+          label: 'Add marker here',
+          onSelect: () => {
+            if (!clipId) return;
+            const id = addMarker(clipId, time, '');
+            selectMarker(id);
+          },
+        },
+      ],
+      { event },
+    );
   };
-
-  const jumpTo = (time: number) => {
-    setCurrentTime(time);
-  };
-
-  const onSplitAtBand = () => {
-    if (!clipId || !bandClickTime) return;
-    splitAtTime(clipId, bandClickTime.time);
-  };
-
-  const onJumpToIn = () => {
-    if (!bandClickTime) return;
-    const seg = segments.find((s) => s.id === bandClickTime.segId);
-    if (!seg) return;
-    jumpTo(seg.in);
-  };
-
-  const onJumpToOut = () => {
-    if (!bandClickTime) return;
-    const seg = segments.find((s) => s.id === bandClickTime.segId);
-    if (!seg) return;
-    jumpTo(seg.out);
-  };
-
-  const onDeleteSegment = () => {
-    if (!clipId || !bandClickTime) return;
-    removeSegment(clipId, bandClickTime.segId);
-    useEditModeStore.getState().clearSelection();
-  };
-
-  const onSetPlayMode = (mode: SegmentPlayMode) => {
-    if (!clipId || !bandClickTime) return;
-    setSegmentPlayMode(clipId, bandClickTime.segId, mode);
-  };
-
-  const onSetSpeed = (speed: number) => {
-    if (!clipId || !bandClickTime) return;
-    setSegmentSpeed(clipId, bandClickTime.segId, speed);
-  };
-
-  const onAddMarkerHere = () => {
-    if (!clipId || emptyClickTime === undefined) return;
-    const id = addMarker(clipId, emptyClickTime, '');
-    selectMarker(id);
-  };
-
-  const emptyMenu = !readOnly ? (
-    <ContextMenu>
-      <ContextMenuTrigger
-        className="absolute inset-0 z-0"
-        data-testid="transport-segment-empty-trigger"
-        onContextMenu={handleEmptyContextMenu}
-      />
-      <ContextMenuContent data-testid="transport-empty-context-menu">
-        <ContextMenuItem onClick={onAddMarkerHere}>
-          Add marker here
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
-  ) : null;
 
   return (
     <div
-      className="relative h-full w-full"
+      className="pointer-events-none absolute inset-x-0 top-1/2 z-20 h-3 -translate-y-1/2"
       data-testid="transport-segment-layer"
-      ref={trackRef}
     >
-      {emptyMenu}
+      {!readOnly ? (
+        <ContextMenuTrigger
+          className="pointer-events-auto absolute inset-0 z-0"
+          data-testid="transport-segment-empty-trigger"
+          onContextMenu={handleEmptyContextMenu}
+        />
+      ) : null}
       {duration > 0
         ? segments.map((seg) => (
             <SegmentBand
@@ -238,16 +233,11 @@ export function SegmentLayer({ readOnly = false }: Props) {
               key={seg.id}
               readOnly={readOnly}
               segment={seg}
+              timeToPercent={timeToPercent}
               onBandClick={(event) => handleBandClick(event, seg.id)}
-              onBandContextMenu={(event) => handleBandContextMenu(event, seg.id)}
-              onDeleteSegment={onDeleteSegment}
+              onBandContextMenu={(event) => handleBandContextMenu(event, seg)}
               onHandlePointerMove={handlePointerMove}
               onHandlePointerUp={handlePointerUp}
-              onJumpToIn={onJumpToIn}
-              onJumpToOut={onJumpToOut}
-              onSetPlayMode={onSetPlayMode}
-              onSetSpeed={onSetSpeed}
-              onSplitHere={onSplitAtBand}
               onHandlePointerDown={(event, edge) =>
                 handlePointerDown(event, seg.id, edge)
               }
@@ -261,46 +251,40 @@ export function SegmentLayer({ readOnly = false }: Props) {
 interface BandProps {
   duration: number;
   onBandClick: (event: React.MouseEvent) => void;
-  onBandContextMenu: (event: React.MouseEvent) => void;
-  onDeleteSegment: () => void;
+  onBandContextMenu: (event: React.MouseEvent<HTMLElement>) => void;
   onHandlePointerDown: (
     event: React.PointerEvent<HTMLDivElement>,
     edge: Edge,
   ) => void;
   onHandlePointerMove: (event: React.PointerEvent<HTMLDivElement>) => void;
   onHandlePointerUp: (event: React.PointerEvent<HTMLDivElement>) => void;
-  onJumpToIn: () => void;
-  onJumpToOut: () => void;
-  onSetPlayMode: (mode: SegmentPlayMode) => void;
-  onSetSpeed: (speed: number) => void;
-  onSplitHere: () => void;
   readOnly: boolean;
   segment: Segment;
+  timeToPercent: (time: number) => number;
 }
 
 function SegmentBand({
   segment,
   duration,
   readOnly,
+  timeToPercent,
   onBandClick,
   onBandContextMenu,
   onHandlePointerDown,
   onHandlePointerMove,
   onHandlePointerUp,
-  onSplitHere,
-  onJumpToIn,
-  onJumpToOut,
-  onDeleteSegment,
-  onSetPlayMode,
-  onSetSpeed,
 }: BandProps) {
-  const leftPct = (segment.in / duration) * 100;
-  const widthPct = ((segment.out - segment.in) / duration) * 100;
+  const leftPct = timeToPercent(segment.in);
+  const widthPct = duration > 0 ? ((segment.out - segment.in) / duration) * 100 : 0;
   const speedLabel =
     segment.speed && segment.speed !== 1
       ? `${segment.speed.toFixed(2)}x`
       : '1x';
   const title = `${formatTime(segment.in)} - ${formatTime(segment.out)}  ${segment.playMode}  ${speedLabel}`;
+
+  const stopScrub = (event: React.PointerEvent<HTMLElement>) => {
+    event.stopPropagation();
+  };
 
   const bandInner = (
     <>
@@ -327,6 +311,7 @@ function SegmentBand({
           readOnly ? 'cursor-default' : 'cursor-pointer hover:bg-accent/40',
         )}
         onClick={onBandClick}
+        onPointerDown={stopScrub}
       />
       {!readOnly ? (
         <div
@@ -346,12 +331,9 @@ function SegmentBand({
   if (readOnly) {
     return (
       <div
-        className="absolute inset-y-1 z-10 flex items-stretch"
+        className="pointer-events-auto absolute inset-y-0 z-10 flex items-stretch"
         data-testid={`transport-segment-band-${segment.id}`}
-        style={{
-          left: `${leftPct}%`,
-          width: `${widthPct}%`,
-        }}
+        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
       >
         {bandInner}
       </div>
@@ -359,59 +341,14 @@ function SegmentBand({
   }
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger
-        className="absolute inset-y-1 z-10 flex items-stretch"
+    <ContextMenuTrigger onContextMenu={onBandContextMenu}>
+      <div
+        className="pointer-events-auto absolute inset-y-0 z-10 flex items-stretch"
         data-testid={`transport-segment-band-${segment.id}`}
         style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-        onContextMenu={onBandContextMenu}
       >
         {bandInner}
-      </ContextMenuTrigger>
-      <ContextMenuContent data-testid={`transport-segment-menu-${segment.id}`}>
-        <ContextMenuItem onClick={onSplitHere}>Split here</ContextMenuItem>
-        <ContextMenuItem onClick={onJumpToIn}>Jump to in</ContextMenuItem>
-        <ContextMenuItem onClick={onJumpToOut}>Jump to out</ContextMenuItem>
-        <ContextMenuSeparator />
-        <MenuGroupLabel>Set playMode</MenuGroupLabel>
-        <ContextMenuItem onClick={() => onSetPlayMode('normal')}>
-          Normal
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onSetPlayMode('reverse')}>
-          Reverse
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => onSetPlayMode('freeze')}>
-          Freeze
-        </ContextMenuItem>
-        {segment.playMode === 'normal' || segment.playMode === 'reverse' ? (
-          <>
-            <ContextMenuSeparator />
-            <MenuGroupLabel>Set speed</MenuGroupLabel>
-            <ContextMenuItem onClick={() => onSetSpeed(0.25)}>
-              0.25x
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => onSetSpeed(0.5)}>
-              0.5x
-            </ContextMenuItem>
-            <ContextMenuItem onClick={() => onSetSpeed(1)}>1x</ContextMenuItem>
-            <ContextMenuItem onClick={() => onSetSpeed(2)}>2x</ContextMenuItem>
-            <ContextMenuItem onClick={() => onSetSpeed(4)}>4x</ContextMenuItem>
-          </>
-        ) : null}
-        <ContextMenuSeparator />
-        <ContextMenuItem destructive onClick={onDeleteSegment}>
-          Delete segment
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+      </div>
+    </ContextMenuTrigger>
   );
 }
-
-function MenuGroupLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="px-2 py-1 text-[10px] uppercase tracking-wider text-text-tertiary">
-      {children}
-    </div>
-  );
-}
-

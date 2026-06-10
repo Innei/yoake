@@ -5,7 +5,6 @@ import { useEditModeStore } from '~/state/editModeStore';
 
 import { ContextExportAction } from './ContextExportAction';
 import { DeliverTab } from './DeliverTab';
-import { EditToggleButton } from './EditToggleButton';
 import { GradeTab } from './GradeTab';
 import { InspectTab } from './InspectTab';
 
@@ -20,6 +19,7 @@ const TABS: { key: TabKey; label: string }[] = [
 export function EditRightPanel() {
   const [active, setActive] = useState<TabKey>('inspect');
   const outlineSelection = useEditModeStore((s) => s.outlineSelection);
+  const mode = useEditModeStore((s) => s.mode);
   const navRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -43,12 +43,14 @@ export function EditRightPanel() {
 
   return (
     <div
-      className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_auto]"
       data-testid="edit-right-panel"
+      className={cn(
+        'grid h-full min-h-0',
+        mode === 'edit'
+          ? 'grid-rows-[auto_minmax(0,1fr)]'
+          : 'grid-rows-[auto_minmax(0,1fr)_auto]',
+      )}
     >
-      <div className="flex h-9 items-center justify-end border-b border-border px-2">
-        <EditToggleButton variant="done" />
-      </div>
       <div
         aria-label="Edit panel tabs"
         className="flex shrink-0 items-center gap-1 border-b border-border px-2 py-1"
@@ -89,9 +91,11 @@ export function EditRightPanel() {
         {active === 'grade' ? <GradeTab /> : null}
         {active === 'deliver' ? <DeliverTab /> : null}
       </div>
-      <div className="min-h-0 border-t border-border">
-        <ContextExportAction />
-      </div>
+      {mode === 'edit' ? null : (
+        <div className="min-h-0 border-t border-border">
+          <ContextExportAction />
+        </div>
+      )}
     </div>
   );
 }

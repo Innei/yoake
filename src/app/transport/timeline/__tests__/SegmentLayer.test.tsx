@@ -8,6 +8,7 @@ import { useEditModeStore } from '~/state/editModeStore';
 import { useEditStore } from '~/state/editStore';
 
 import { SegmentLayer } from '../SegmentLayer';
+import { TimelineTestProvider } from './testHelpers';
 
 const fileHandle = {} as FileSystemFileHandle;
 
@@ -98,7 +99,11 @@ describe('SegmentLayer', () => {
       makeSegment({ id: 'a', in: 0, out: 2 }),
       makeSegment({ id: 'b', in: 4, out: 6 }),
     ]);
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     expect(getByTestId('transport-segment-layer')).toBeTruthy();
     expect(getByTestId('transport-segment-band-a')).toBeTruthy();
     expect(getByTestId('transport-segment-band-b')).toBeTruthy();
@@ -106,7 +111,11 @@ describe('SegmentLayer', () => {
 
   it('positions a band by in/out as percentage of duration', () => {
     seedClip([makeSegment({ id: 'a', in: 2, out: 5 })], 10);
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const band = getByTestId('transport-segment-band-a') as HTMLDivElement;
     expect(band.style.left).toBe('20%');
     expect(band.style.width).toBe('30%');
@@ -116,9 +125,13 @@ describe('SegmentLayer', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10, 30);
     const spy = vi.spyOn(useClipDataStore.getState(), 'updateSegment');
 
-    const { getByTestId } = render(<SegmentLayer />);
-    const layer = getByTestId('transport-segment-layer') as HTMLDivElement;
-    mockRect(layer, 200, 0);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10} fps={30}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
+    const track = getByTestId('timeline-test-track');
+    mockRect(track, 200, 0);
     const handle = getByTestId('transport-segment-handle-a-out') as HTMLDivElement;
 
     fireEvent.pointerDown(handle, { pointerId: 1, clientX: 60 });
@@ -144,9 +157,13 @@ describe('SegmentLayer', () => {
     );
     const spy = vi.spyOn(useClipDataStore.getState(), 'updateSegment');
 
-    const { getByTestId } = render(<SegmentLayer />);
-    const layer = getByTestId('transport-segment-layer') as HTMLDivElement;
-    mockRect(layer, 200, 0);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10} fps={30}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
+    const track = getByTestId('timeline-test-track');
+    mockRect(track, 200, 0);
     const handle = getByTestId('transport-segment-handle-a-out') as HTMLDivElement;
 
     fireEvent.pointerDown(handle, { pointerId: 1, clientX: 40 });
@@ -160,13 +177,17 @@ describe('SegmentLayer', () => {
     expect(patch.out).toBeGreaterThan(0);
   });
 
-  it('view mode (readOnly) renders no handles and ignores band click', () => {
+  it('view mode renders no handles and ignores band click', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
     useEditModeStore.setState({ mode: 'view' });
     const updateSpy = vi.spyOn(useClipDataStore.getState(), 'updateSegment');
     const selectSpy = vi.spyOn(useEditModeStore.getState(), 'selectSegment');
 
-    const { getByTestId, queryByTestId } = render(<SegmentLayer readOnly />);
+    const { getByTestId, queryByTestId } = render(
+      <TimelineTestProvider readOnly duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     expect(queryByTestId('transport-segment-handle-a-in')).toBeNull();
     expect(queryByTestId('transport-segment-handle-a-out')).toBeNull();
 
@@ -181,7 +202,11 @@ describe('SegmentLayer', () => {
     seedClip([makeSegment({ id: 'a', in: 1, out: 3 })], 10);
     const selectSpy = vi.spyOn(useEditModeStore.getState(), 'selectSegment');
 
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const body = getByTestId('transport-segment-body-a') as HTMLButtonElement;
     fireEvent.click(body);
 
@@ -193,7 +218,11 @@ describe('SegmentLayer', () => {
       [makeSegment({ id: 'a', in: 1, out: 3, playMode: 'reverse', speed: 0.5 })],
       10,
     );
-    const { getByTestId } = render(<SegmentLayer />);
+    const { getByTestId } = render(
+      <TimelineTestProvider duration={10}>
+        <SegmentLayer />
+      </TimelineTestProvider>,
+    );
     const body = getByTestId('transport-segment-body-a') as HTMLButtonElement;
     const title = body.getAttribute('title') ?? '';
     expect(title).toContain('reverse');

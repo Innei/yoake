@@ -92,8 +92,8 @@ export function HdrSection() {
           min={0}
           step={0.05}
           value={hdrStrength}
-          onChange={(event) => setHdrStrength(Number(event.target.value))}
           onDoubleClick={() => setHdrStrength(0.2)}
+          onValueChange={setHdrStrength}
         />
       </div>
     </PanelSection>

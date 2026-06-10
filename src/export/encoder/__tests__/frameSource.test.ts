@@ -55,4 +55,64 @@ describe('buildFramePlan', () => {
     expect(plan.every((f) => f.sourceTime >= 1 && f.sourceTime <= 2)).toBe(true);
     expect(plan).toHaveLength(4);
   });
+
+  it('halves frame count at 2x speed', () => {
+    const plan = buildFramePlan({
+      duration: 10,
+      fps: 4,
+      segments: [{ ...seg('a', 0, 2), speed: 2 }],
+    });
+    expect(plan).toHaveLength(4);
+    expect(plan.at(-1)!.sourceTime).toBeGreaterThan(1.5);
+  });
+
+  it('doubles frame count at 0.5x speed', () => {
+    const plan = buildFramePlan({
+      duration: 10,
+      fps: 4,
+      segments: [{ ...seg('a', 0, 2), speed: 0.5 }],
+    });
+    expect(plan).toHaveLength(16);
+  });
+
+  it('emits decreasing source times for reverse segments', () => {
+    const plan = buildFramePlan({
+      duration: 10,
+      fps: 4,
+      segments: [{ ...seg('a', 1, 3), playMode: 'reverse' }],
+    });
+    expect(plan).toHaveLength(8);
+    for (let i = 1; i < plan.length; i += 1) {
+      expect(plan[i]!.sourceTime).toBeLessThan(plan[i - 1]!.sourceTime);
+    }
+    expect(plan[0]!.sourceTime).toBeLessThan(3);
+    expect(plan.at(-1)!.sourceTime).toBeGreaterThanOrEqual(1);
+  });
+
+  it('holds the in-frame for the freeze duration', () => {
+    const plan = buildFramePlan({
+      duration: 10,
+      fps: 4,
+      segments: [
+        { ...seg('a', 1, 3), playMode: 'freeze', freezeDurationSec: 1.5 },
+      ],
+    });
+    expect(plan).toHaveLength(6);
+    expect(plan.every((f) => f.sourceTime === 1)).toBe(true);
+  });
+
+  it('ignores speed and playMode when bakeSpeed is false', () => {
+    const plan = buildFramePlan({
+      bakeSpeed: false,
+      duration: 10,
+      fps: 4,
+      segments: [
+        { ...seg('a', 0, 2), playMode: 'reverse', speed: 2 },
+      ],
+    });
+    expect(plan).toHaveLength(8);
+    for (let i = 1; i < plan.length; i += 1) {
+      expect(plan[i]!.sourceTime).toBeGreaterThan(plan[i - 1]!.sourceTime);
+    }
+  });
 });

@@ -6,38 +6,72 @@ export interface FramePlan {
 }
 
 export interface BuildFramePlanOptions {
+  bakeSpeed?: boolean;
   duration: number;
   fps: number;
   segments: readonly Segment[];
 }
 
+const MIN_SPEED = 0.05;
+const MAX_SPEED = 10;
+const DEFAULT_FREEZE_SEC = 2;
+const OUT_EPSILON = 1e-6;
+
 function sortKeepSegments(segments: readonly Segment[]): Segment[] {
   return [...segments].sort((a, b) => a.in - b.in);
 }
 
+function clampSpeed(speed: number): number {
+  if (!Number.isFinite(speed) || speed <= 0) return 1;
+  return Math.min(MAX_SPEED, Math.max(MIN_SPEED, speed));
+}
+
 export function buildFramePlan(opts: BuildFramePlanOptions): FramePlan[] {
-  const { duration, fps, segments } = opts;
+  const { duration, fps, segments, bakeSpeed = true } = opts;
   if (!(fps > 0)) return [];
   const frameDur = 1 / fps;
 
-  const ranges: { in: number; out: number }[] =
-    segments.length === 0
-      ? duration > 0
-        ? [{ in: 0, out: duration }]
-        : []
-      : sortKeepSegments(segments).map((s) => ({ in: s.in, out: s.out }));
-
   const plan: FramePlan[] = [];
   let outIdx = 0;
-  for (const range of ranges) {
-    const span = range.out - range.in;
-    if (!(span > 0)) continue;
-    const frameCount = Math.max(1, Math.round(span * fps));
+  const emit = (sourceTime: number) => {
+    plan.push({ sourceTime, outputFrameIndex: outIdx });
+    outIdx += 1;
+  };
+
+  if (segments.length === 0) {
+    if (!(duration > 0)) return [];
+    const frameCount = Math.max(1, Math.round(duration * fps));
     for (let i = 0; i < frameCount; i += 1) {
-      const t = range.in + (i + 0.5) * frameDur;
-      const clamped = Math.min(range.out - 1e-6, Math.max(range.in, t));
-      plan.push({ sourceTime: clamped, outputFrameIndex: outIdx });
-      outIdx += 1;
+      const t = (i + 0.5) * frameDur;
+      emit(Math.min(duration - OUT_EPSILON, Math.max(0, t)));
+    }
+    return plan;
+  }
+
+  for (const segment of sortKeepSegments(segments)) {
+    const span = segment.out - segment.in;
+    if (!(span > 0)) continue;
+
+    const playMode = bakeSpeed ? segment.playMode : 'normal';
+    const speed = bakeSpeed ? clampSpeed(segment.speed) : 1;
+
+    if (playMode === 'freeze') {
+      const holdSec = segment.freezeDurationSec ?? DEFAULT_FREEZE_SEC;
+      const frameCount = Math.max(1, Math.round(holdSec * fps));
+      for (let i = 0; i < frameCount; i += 1) {
+        emit(segment.in);
+      }
+      continue;
+    }
+
+    const step = speed * frameDur;
+    const frameCount = Math.max(1, Math.round(span / step));
+    for (let i = 0; i < frameCount; i += 1) {
+      const t =
+        playMode === 'reverse'
+          ? segment.out - (i + 0.5) * step
+          : segment.in + (i + 0.5) * step;
+      emit(Math.min(segment.out - OUT_EPSILON, Math.max(segment.in, t)));
     }
   }
   return plan;

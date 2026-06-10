@@ -2,12 +2,8 @@ import { Film, FolderOpen, Lock, Search, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
 import { Button } from '~/components/ui/button';
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '~/components/ui/context-menu';
+import { ContextMenuTrigger } from '~/components/ui/context-menu';
+import { confirm } from '~/components/ui/modal';
 import { Panel, PanelHeader } from '~/components/ui/panel';
 import { scanClips } from '~/fs/clipScanner';
 import { ensurePermission, requestPermission } from '~/fs/handleStore';
@@ -128,8 +124,13 @@ export function ClipList() {
   const handleDeleteClip = useCallback(
     async (clip: ClipMeta) => {
       if (!directoryHandle) return;
-      const confirmed = window.confirm(`Delete "${clip.name}" from disk? This cannot be undone.`);
-      if (!confirmed) return;
+      const ok = await confirm({
+        content: `Delete "${clip.name}" from disk? This cannot be undone.`,
+        danger: true,
+        okText: 'Delete',
+        title: 'Delete clip',
+      });
+      if (!ok) return;
 
       try {
         const status = await requestPermission(directoryHandle, 'readwrite');
@@ -273,55 +274,58 @@ function ClipRow({
 }) {
   return (
     <li>
-      <ContextMenu>
-        <ContextMenuTrigger className="block">
-          <button
-            aria-current={selected ? 'true' : undefined}
-            type="button"
+      <ContextMenuTrigger
+        className="block"
+        items={[
+          {
+            destructive: true,
+            icon: <Trash2 aria-hidden className="size-3.5 shrink-0" />,
+            label: 'Delete from disk',
+            onSelect: onDelete,
+          },
+        ]}
+      >
+        <button
+          aria-current={selected ? 'true' : undefined}
+          type="button"
+          className={cn(
+            'group relative flex w-full items-center gap-2 px-2 py-1.5 text-left',
+            'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
+            selected
+              ? 'bg-fill text-text'
+              : 'text-text-secondary hover:bg-fill/60 hover:text-text',
+            'data-[popup-open]:bg-fill data-[popup-open]:text-text',
+          )}
+          onClick={onSelect}
+        >
+          <span
+            aria-hidden
             className={cn(
-              'group relative flex w-full items-center gap-2 px-2 py-1.5 text-left',
-              'transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40',
-              selected
-                ? 'bg-fill text-text'
-                : 'text-text-secondary hover:bg-fill/60 hover:text-text',
+              'absolute inset-y-0 left-0 w-0.5 rounded-full transition-colors',
+              selected ? 'bg-accent' : 'bg-transparent',
             )}
-            onClick={onSelect}
-          >
-            <span
-              aria-hidden
-              className={cn(
-                'absolute inset-y-0 left-0 w-0.5 rounded-full transition-colors',
-                selected ? 'bg-accent' : 'bg-transparent',
-              )}
-            />
-            <Film
-              aria-hidden
-              className={cn(
-                'size-3.5 shrink-0 transition-colors',
-                selected ? 'text-accent' : 'text-text-quaternary',
-              )}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm">{clip.name}</div>
-              <div className="mt-0.5 flex items-center gap-1.5 text-[10px] tabular-nums text-text-tertiary">
-                <span>{formatSize(clip.size)}</span>
-                {clip.lastModified ? (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>{formatRelative(clip.lastModified)}</span>
-                  </>
-                ) : null}
-              </div>
+          />
+          <Film
+            aria-hidden
+            className={cn(
+              'size-3.5 shrink-0 transition-colors',
+              selected ? 'text-accent' : 'text-text-quaternary',
+            )}
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm">{clip.name}</div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-[10px] tabular-nums text-text-tertiary">
+              <span>{formatSize(clip.size)}</span>
+              {clip.lastModified ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{formatRelative(clip.lastModified)}</span>
+                </>
+              ) : null}
             </div>
-          </button>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          <ContextMenuItem destructive onClick={onDelete}>
-            <Trash2 aria-hidden className="size-3.5 shrink-0" />
-            <span>Delete from disk</span>
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+          </div>
+        </button>
+      </ContextMenuTrigger>
     </li>
   );
 }

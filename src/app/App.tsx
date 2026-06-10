@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { parseCubeLut } from '~/color/lutCube';
+import { ContextMenuHost } from '~/components/ui/context-menu';
+import { ModalHost } from '~/components/ui/modal';
 import { Toaster } from '~/components/ui/toaster';
 import { scanClips } from '~/fs/clipScanner';
 import { ensurePermission } from '~/fs/handleStore';
@@ -104,6 +106,8 @@ export function App() {
     <>
       <Shell />
       <Toaster />
+      <ModalHost />
+      <ContextMenuHost />
       <ShortcutHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );

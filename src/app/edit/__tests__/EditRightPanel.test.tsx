@@ -12,10 +12,6 @@ vi.mock('../ContextExportAction', () => ({
   ContextExportAction: () => <div data-testid="context-export-mock" />,
 }));
 
-vi.mock('../EditToggleButton', () => ({
-  EditToggleButton: () => <div data-testid="edit-toggle-mock" />,
-}));
-
 vi.mock('../MarkerContextPanel', () => ({
   MarkerContextPanel: ({ id }: { id: string }) => (
     <div data-id={id} data-testid="marker-context-panel-mock" />

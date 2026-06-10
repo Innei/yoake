@@ -26,8 +26,8 @@ export function ExposureControl({ value, onChange }: ExposureControlProps) {
         min={EXPOSURE_MIN}
         step={EXPOSURE_STEP}
         value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
         onDoubleClick={() => onChange(0)}
+        onValueChange={onChange}
       />
       <div className="flex justify-between text-[10px] tabular-nums text-text-quaternary">
         <span>{EXPOSURE_MIN.toFixed(0)}</span>

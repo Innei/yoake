@@ -93,10 +93,12 @@ export function GradeTab() {
 
   const handleExposureChange = useCallback(
     (value: number) => {
-      setExposureOnEditStore(value);
+      // override edits must not leak into the global fallback exposure,
+      // or non-override segments inherit it at export time
+      if (scope !== 'override') setExposureOnEditStore(value);
       writeGradePatch({ exposure: value });
     },
-    [setExposureOnEditStore, writeGradePatch],
+    [scope, setExposureOnEditStore, writeGradePatch],
   );
 
   const handleOverrideStart = useCallback(() => {
