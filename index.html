@@ -2,11 +2,70 @@
 <html lang="en" suppressHydrationWarning>
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Develop the dawn. Restore DJI D-Log M footage and export Ultra HDR JPEG stills, locally in the browser." />
-    <meta name="theme-color" content="#0a0a0f" />
     <title>Yoake — Develop the dawn</title>
+    <meta
+      name="description"
+      content="Develop the dawn. Restore DJI D-Log M footage and export Ultra HDR JPEG stills, locally in the browser."
+    />
+    <meta
+      name="keywords"
+      content="DJI, D-Log M, LUT, Ultra HDR, gainmap, JPEG, HDR photo, WebGPU, frame grab, drone footage"
+    />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="%VITE_SITE_URL%/" vite-ignore />
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#0a0a0f" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="apple-mobile-web-app-title" content="Yoake" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Yoake" />
+    <meta property="og:title" content="Yoake — Develop the dawn" />
+    <meta
+      property="og:description"
+      content="Restore DJI D-Log M footage and export Ultra HDR JPEG stills, locally in the browser."
+    />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Yoake — a small sun rising over a dark sea of clouds at dawn"
+    />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Yoake — Develop the dawn" />
+    <meta
+      name="twitter:description"
+      content="Restore DJI D-Log M footage and export Ultra HDR JPEG stills, locally in the browser."
+    />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og-image.jpg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "alternateName": "Yoake — Develop the dawn",
+        "applicationCategory": "MultimediaApplication",
+        "browserRequirements": "Requires Chrome with WebGPU on an HDR-capable display",
+        "description": "A local-only web darkroom that restores DJI D-Log M footage and exports Ultra HDR JPEG stills.",
+        "name": "Yoake",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "operatingSystem": "macOS"
+      }
+    </script>
   </head>
   <body class="bg-background text-text">
     <div id="root"></div>

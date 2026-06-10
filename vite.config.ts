@@ -4,12 +4,17 @@ import babel from '@rolldown/plugin-babel';
 import tailwindcss from '@tailwindcss/vite';
 import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { routeBuilderPlugin } from 'vite-plugin-route-builder';
 import topLevelAwait from 'vite-plugin-top-level-await';
 import wasm from 'vite-plugin-wasm';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  define: {
+    'import.meta.env.VITE_SITE_URL': JSON.stringify(
+      loadEnv(mode, process.cwd(), '').VITE_SITE_URL?.replace(/\/$/, '') ?? '',
+    ),
+  },
   resolve: {
     alias: {
       '~': fileURLToPath(new URL('./src', import.meta.url)),
@@ -32,4 +37,4 @@ export default defineConfig({
     wasm(),
     topLevelAwait(),
   ],
-});
+}));
