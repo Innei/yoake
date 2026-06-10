@@ -251,6 +251,11 @@ export function Preview() {
       blobUrlRef.current = null;
     }
 
+    // video.load() silently sets paused=true without a pause event, so the
+    // store must be reset here or isPlaying goes stale across clip switches
+    setStorePlaying(false);
+    setStoreCurrentTime(0);
+
     if (!selectedClip) {
       video.removeAttribute('src');
       video.load();
@@ -297,7 +302,14 @@ export function Preview() {
     return () => {
       cancelled = true;
     };
-  }, [selectedClip, gpuReady, setStoreDuration, setStoreFps]);
+  }, [
+    selectedClip,
+    gpuReady,
+    setStoreDuration,
+    setStoreFps,
+    setStorePlaying,
+    setStoreCurrentTime,
+  ]);
 
   useEffect(() => {
     if (!gpuReady) return;
