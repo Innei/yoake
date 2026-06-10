@@ -2,7 +2,7 @@
 import { Dialog } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 import { AnimatePresence, domAnimation, LazyMotion, m } from 'motion/react';
-import type { ReactNode } from 'react';
+import type { JSX, ReactNode } from 'react';
 import {
   memo,
   useCallback,
@@ -264,7 +264,7 @@ const StackItem = memo(function StackItem({ entry }: { entry: StackEntry }) {
       ? { maxWidth: `${width}px` }
       : width
         ? { maxWidth: width }
-        : undefined;
+        : {};
 
   return (
     <Dialog.Root modal open onOpenChange={handleOpenChange}>

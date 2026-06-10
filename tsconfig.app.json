@@ -20,7 +20,6 @@
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
     "types": ["@types/wicg-file-system-access"],
-    "baseUrl": ".",
     "paths": { "~/*": ["./src/*"] }
   },
   "include": ["src", "tests"]
