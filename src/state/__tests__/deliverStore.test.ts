@@ -6,6 +6,7 @@ function resetDeliverStore(): void {
   useDeliverStore.setState({
     container: 'mp4-h264',
     resolution: 'source',
+    quality: 'high',
     colorspace: 'rec709',
     bakeTrim: true,
     bakeSpeed: true,
@@ -23,6 +24,7 @@ describe('deliverStore defaults', () => {
     const s = useDeliverStore.getState();
     expect(s.container).toBe('mp4-h264');
     expect(s.resolution).toBe('source');
+    expect(s.quality).toBe('high');
     expect(s.colorspace).toBe('rec709');
     expect(s.bakeTrim).toBe(true);
     expect(s.bakeSpeed).toBe(true);
@@ -40,6 +42,11 @@ describe('deliverStore actions', () => {
   it('setResolution updates the resolution', () => {
     useDeliverStore.getState().setResolution('4k');
     expect(useDeliverStore.getState().resolution).toBe('4k');
+  });
+
+  it('setQuality updates the quality', () => {
+    useDeliverStore.getState().setQuality('very-high');
+    expect(useDeliverStore.getState().quality).toBe('very-high');
   });
 
   it('setColorspace updates the colorspace', () => {

@@ -11,42 +11,36 @@ import type {
   DeliverColorspace,
   DeliverContainer,
   DeliverOutputMode,
+  DeliverQuality,
   DeliverResolution,
 } from '~/state/deliverStore';
 import { useDeliverStore } from '~/state/deliverStore';
+import { useExportStatusStore } from '~/state/exportStatusStore';
 import { usePrefsStore } from '~/state/prefsStore';
 import { toast } from '~/state/toastStore';
 
+import { DeliverContainerPicker } from './DeliverContainerPicker';
+import { DeliverExportProgress } from './DeliverExportProgress';
 import { useExport } from './useExport';
 import { useFrameExtract } from './useFrameExtract';
 
-const UNSUPPORTED_CONTAINER_HINT =
-  'Only H.264 .mp4 is supported in this build.';
 const UNSUPPORTED_COLORSPACE_HINT =
   'HDR (Rec.2020) export is not supported in this build.';
 const NO_CLIP_HINT = 'Pick a clip in the sidebar to export.';
 const NO_FOLDER_HINT = 'Choose an export folder above before exporting.';
-
-const CONTAINERS: readonly {
-  disabled?: boolean;
-  hint?: string;
-  label: string;
-  value: DeliverContainer;
-}[] = [
-  { value: 'mp4-h264', label: 'H.264 .mp4' },
-  { value: 'mp4-h265', label: 'H.265 .mp4', disabled: true, hint: UNSUPPORTED_CONTAINER_HINT },
-  {
-    value: 'mov-prores',
-    label: 'ProRes 422 .mov',
-    disabled: true,
-    hint: UNSUPPORTED_CONTAINER_HINT,
-  },
-];
+const EXPORT_RUNNING_HINT = 'Export in progress.';
 
 const RESOLUTIONS: readonly { label: string; value: DeliverResolution }[] = [
   { value: 'source', label: 'Source' },
   { value: '1080p', label: '1080p' },
   { value: '4k', label: '4K' },
+];
+
+const QUALITIES: readonly { label: string; value: DeliverQuality }[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'very-high', label: 'Very high' },
 ];
 
 const COLORSPACES: readonly {
@@ -157,6 +151,7 @@ export function DeliverTab() {
 
   const container = useDeliverStore((s) => s.container);
   const resolution = useDeliverStore((s) => s.resolution);
+  const quality = useDeliverStore((s) => s.quality);
   const colorspace = useDeliverStore((s) => s.colorspace);
   const bakeTrim = useDeliverStore((s) => s.bakeTrim);
   const bakeSpeed = useDeliverStore((s) => s.bakeSpeed);
@@ -164,23 +159,27 @@ export function DeliverTab() {
   const outputMode = useDeliverStore((s) => s.outputMode);
   const setContainer = useDeliverStore((s) => s.setContainer);
   const setResolution = useDeliverStore((s) => s.setResolution);
+  const setQuality = useDeliverStore((s) => s.setQuality);
   const setColorspace = useDeliverStore((s) => s.setColorspace);
   const toggleBake = useDeliverStore((s) => s.toggleBake);
   const setOutputMode = useDeliverStore((s) => s.setOutputMode);
 
   const exportDirHandle = usePrefsStore((s) => s.exportDirHandle);
   const setPrefHandle = usePrefsStore((s) => s.setHandle);
+  const exporting = useExportStatusStore((s) => s.status.kind === 'running');
 
   const extractFrame = useFrameExtract();
   const runExport = useExport();
 
   const basename = useMemo(() => stripExt(clipName ?? 'output'), [clipName]);
-  const exportDisabled = !selectedClipId || !exportDirHandle;
-  const exportHint = !selectedClipId
-    ? NO_CLIP_HINT
-    : exportDirHandle
-      ? 'Export as H.264 .mp4 with grade baked in.'
-      : NO_FOLDER_HINT;
+  const exportDisabled = !selectedClipId || !exportDirHandle || exporting;
+  const exportHint = exporting
+    ? EXPORT_RUNNING_HINT
+    : !selectedClipId
+      ? NO_CLIP_HINT
+      : exportDirHandle
+        ? 'Export with current Deliver settings.'
+        : NO_FOLDER_HINT;
   const ext = extensionFor(container);
   const filenames = useMemo(
     () => computeFilenames(basename, ext, outputMode, segmentCount),
@@ -209,56 +208,7 @@ export function DeliverTab() {
           className="flex flex-col gap-3"
           data-testid="deliver-output-section"
         >
-        <div
-          aria-label="Container"
-          className="flex flex-col gap-1"
-          role="radiogroup"
-        >
-          {CONTAINERS.map((c) => {
-            const active = container === c.value;
-            const disabled = c.disabled === true;
-            return (
-              <label
-                key={c.value}
-                title={c.hint}
-                className={cn(
-                  'flex items-center gap-2 rounded-md border px-2 py-1.5 text-xs transition-colors',
-                  disabled
-                    ? 'cursor-not-allowed border-border bg-background-secondary text-text-tertiary opacity-50'
-                    : active
-                      ? 'cursor-pointer border-accent bg-accent/10 text-text'
-                      : 'cursor-pointer border-border bg-background-secondary text-text-secondary hover:bg-fill/60',
-                )}
-              >
-                <input
-                  checked={active}
-                  className="sr-only"
-                  data-testid={`deliver-container-${c.value}`}
-                  disabled={disabled}
-                  name="deliver-container"
-                  type="radio"
-                  value={c.value}
-                  onChange={() => setContainer(c.value)}
-                />
-                <span
-                  aria-hidden
-                  className={cn(
-                    'inline-block size-2 rounded-full',
-                    active ? 'bg-accent' : 'bg-border',
-                  )}
-                />
-                <span className="flex flex-col">
-                  <span>{c.label}</span>
-                  {c.hint ? (
-                    <span className="text-[10px] text-text-tertiary">
-                      {c.hint}
-                    </span>
-                  ) : null}
-                </span>
-              </label>
-            );
-          })}
-        </div>
+        <DeliverContainerPicker container={container} onSelect={setContainer} />
 
         <label className="flex flex-col gap-1">
           <span className="text-[11px] text-text-tertiary">Resolution</span>
@@ -271,6 +221,22 @@ export function DeliverTab() {
             {RESOLUTIONS.map((r) => (
               <option key={r.value} value={r.value}>
                 {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-text-tertiary">Quality</span>
+          <select
+            className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-text shadow-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+            data-testid="deliver-quality-select"
+            value={quality}
+            onChange={(e) => setQuality(e.target.value as DeliverQuality)}
+          >
+            {QUALITIES.map((q) => (
+              <option key={q.value} value={q.value}>
+                {q.label}
               </option>
             ))}
           </select>
@@ -459,6 +425,7 @@ export function DeliverTab() {
 
       <PanelSection>
         <div className="flex flex-col gap-1.5">
+          {exporting ? <DeliverExportProgress /> : null}
           <Button
             aria-disabled={exportDisabled}
             aria-label={exportHint}

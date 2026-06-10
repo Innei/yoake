@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export type DeliverContainer = 'mp4-h264' | 'mp4-h265' | 'mov-prores';
 export type DeliverResolution = 'source' | '1080p' | '4k';
+export type DeliverQuality = 'low' | 'medium' | 'high' | 'very-high';
 export type DeliverColorspace = 'rec709' | 'rec2020-hdr';
 export type DeliverOutputMode = 'single' | 'multi';
 export type DeliverBakeField = 'bakeTrim' | 'bakeSpeed' | 'bakeGrade';
@@ -13,10 +14,12 @@ interface DeliverState {
   colorspace: DeliverColorspace;
   container: DeliverContainer;
   outputMode: DeliverOutputMode;
+  quality: DeliverQuality;
   resolution: DeliverResolution;
   setColorspace: (value: DeliverColorspace) => void;
   setContainer: (value: DeliverContainer) => void;
   setOutputMode: (value: DeliverOutputMode) => void;
+  setQuality: (value: DeliverQuality) => void;
   setResolution: (value: DeliverResolution) => void;
   toggleBake: (field: DeliverBakeField) => void;
 }
@@ -24,6 +27,7 @@ interface DeliverState {
 export const useDeliverStore = create<DeliverState>((set) => ({
   container: 'mp4-h264',
   resolution: 'source',
+  quality: 'high',
   colorspace: 'rec709',
   bakeTrim: true,
   bakeSpeed: true,
@@ -31,6 +35,7 @@ export const useDeliverStore = create<DeliverState>((set) => ({
   outputMode: 'single',
   setContainer: (value) => set({ container: value }),
   setResolution: (value) => set({ resolution: value }),
+  setQuality: (value) => set({ quality: value }),
   setColorspace: (value) => set({ colorspace: value }),
   setOutputMode: (value) => set({ outputMode: value }),
   toggleBake: (field) =>
