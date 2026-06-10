@@ -112,7 +112,7 @@ export function Preview() {
           size: 16,
           usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
         });
-        device.queue.writeBuffer(sdrHeadroomBuf, 0, new Float32Array([1, 0, 0, 0]));
+        device.queue.writeBuffer(sdrHeadroomBuf, 0, new Float32Array([1, 0, 1, 0]));
 
         gpuRef.current = {
           device,
@@ -235,7 +235,7 @@ export function Preview() {
     const gpu = gpuRef.current;
     if (!gpu) return;
     const headroom = peakNits / 100;
-    const buf = new Float32Array([headroom, hdrStrength, 0, 0]);
+    const buf = new Float32Array([headroom, hdrStrength, 1, 0]);
     gpu.device.queue.writeBuffer(gpu.peakHeadroomBuf, 0, buf);
     requestRepaint();
   }, [hdrStrength, peakNits, gpuReady, requestRepaint]);

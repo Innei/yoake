@@ -6,6 +6,7 @@ struct VsOut {
 struct Params {
   peakHeadroom: f32,
   hdrStrength: f32,
+  encodeOutput: f32,
 };
 
 @group(0) @binding(0) var sdrBaseTex: texture_2d<f32>;
@@ -41,6 +42,21 @@ fn srgb_to_linear(rgb: vec3f) -> vec3f {
   );
 }
 
+fn linear_to_srgb_extended_component(x: f32) -> f32 {
+  if (x <= 0.0031308) {
+    return 12.92 * x;
+  }
+  return 1.055 * pow(x, 1.0 / 2.4) - 0.055;
+}
+
+fn linear_to_srgb_extended(rgb: vec3f) -> vec3f {
+  return vec3f(
+    linear_to_srgb_extended_component(rgb.r),
+    linear_to_srgb_extended_component(rgb.g),
+    linear_to_srgb_extended_component(rgb.b),
+  );
+}
+
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4f {
   let sdr_encoded = textureSampleLevel(sdrBaseTex, sdrBaseSampler, in.uv, 0.0).rgb;
@@ -56,5 +72,8 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   let max_gain = mix(1.0, params.peakHeadroom, strength);
   let gain = min(mix(1.0, raw_gain, highlight_mask * strength), max_gain);
   let hdr_lin = sdr_lin * gain;
+  if (params.encodeOutput > 0.5) {
+    return vec4f(linear_to_srgb_extended(hdr_lin), 1.0);
+  }
   return vec4f(hdr_lin, 1.0);
 }
