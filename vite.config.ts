@@ -6,8 +6,6 @@ import react, { reactCompilerPreset } from '@vitejs/plugin-react';
 import { codeInspectorPlugin } from 'code-inspector-plugin';
 import { defineConfig, loadEnv } from 'vite';
 import { routeBuilderPlugin } from 'vite-plugin-route-builder';
-import topLevelAwait from 'vite-plugin-top-level-await';
-import wasm from 'vite-plugin-wasm';
 
 export default defineConfig(({ mode }) => ({
   define: {
@@ -19,6 +17,9 @@ export default defineConfig(({ mode }) => ({
     alias: {
       '~': fileURLToPath(new URL('./src', import.meta.url)),
     },
+  },
+  optimizeDeps: {
+    entries: ['index.html'],
   },
   plugins: [
     codeInspectorPlugin({
@@ -34,7 +35,5 @@ export default defineConfig(({ mode }) => ({
       outputPath: './src/generated-routes.ts',
       enableInDev: true,
     }),
-    wasm(),
-    topLevelAwait(),
   ],
 }));
