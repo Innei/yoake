@@ -1,4 +1,8 @@
-# Yoake
+<p align="center">
+  <img src="public/android-chrome-512x512.png" alt="Yoake" width="128" height="128" />
+</p>
+
+<h1 align="center">Yoake</h1>
 
 > **Develop the dawn.** A local-only web darkroom that restores DJI **D-Log M** footage and exports **Ultra HDR JPEG** stills that bloom in macOS Photos and on iPhone.
 
@@ -8,7 +12,8 @@ Yoake (よあけ — "dawn") opens a DJI clip, applies the official D-Log M → 
 
 - **Real HDR preview** on HDR-capable displays via a WebGPU `rgba16float` canvas with extended tone mapping. What you see on screen is what the exported gainmap reconstructs.
 - **Official DJI D-Log M restoration** — forward OETF, 3D `.cube` LUT, sRGB output, all on the GPU.
-- **Ultra HDR JPEG export** through a WASM build of Google's `libultrahdr`. SDR base + per-pixel luminance gainmap, MPF/XMP/ICC metadata round-trips through macOS Photos, iOS Photos, and Google Photos.
+- **Ultra HDR JPEG export** — SDR base + per-pixel luminance gainmap in a hand-assembled ISO 21496-1 container (MPF/XMP/ICC) that round-trips through macOS Photos, iOS Photos, and Google Photos.
+- **Video export** via WebCodecs — direct stream copy when nothing needs baking, or a full GPU re-render that bakes grade, trims, speed ramps, and freeze frames into AVC/HEVC MP4.
 - **SDR JPEG fallback** auto-engages when WebGPU HDR is unavailable.
 - **File System Access** — pick a DJI clip directory and a LUT directory once, handles persist in IndexedDB.
 - **Session restore** — last clip, last LUT, exposure, HDR settings come back on reload.
@@ -20,7 +25,7 @@ Yoake (よあけ — "dawn") opens a DJI clip, applies the official D-Log M → 
 > This tool targets **macOS Chrome with WebGPU enabled** on an HDR-capable display (MacBook Pro mini-LED XDR, Pro Display XDR, recent iMacs). The HDR preview path is gated on `matchMedia('(dynamic-range: high)')` and the WebGPU `extended` tone-mapping mode actually being honored by the browser.
 
 > [!NOTE]
-> Safari, Firefox, Linux, and Windows are not supported in MVP. On SDR-only setups the app still runs, but Ultra HDR export is disabled with a tooltip explaining which capability is missing.
+> Safari, Firefox, Linux, and Windows are not supported. On SDR-only setups the app still runs, but Ultra HDR export is disabled with a tooltip explaining which capability is missing.
 
 Source clips: HEVC Main 10 (yuv420p10le), as written by DJI Action / Osmo cameras in D-Log M mode (`*_D.MP4`).
 
@@ -96,19 +101,19 @@ Per-frame pipeline. The preview renders the *reconstructed Ultra HDR result* —
    log2(hdrLin / sdrLin) → normalize → rgba8 grayscale
                           │
                           ▼
-                  libultrahdr (WASM)
+        ISO 21496-1 container assembly (MPF + APP2 + XMP)
                           │
                           ▼
                 Ultra HDR JPEG file
 ```
 
-The gainmap moves luminance only — hue and saturation come entirely from the LUT, which is what keeps the single-channel encoder faithful. See [`docs/superpowers/specs/2026-06-08-dji-lut-tool-design.md`](docs/superpowers/specs/2026-06-08-dji-lut-tool-design.md) for the full color-pipeline derivation.
+The gainmap moves luminance only — hue and saturation come entirely from the LUT, which is what keeps the single-channel encoder faithful.
 
 ## Stack
 
 - **React 19** · **TypeScript** · **Vite 8** · **React Compiler**
 - **WebGPU** for all per-frame work — scene-linear decode, LUT lookup, gainmap compute
-- **libultrahdr** (WASM, via `open-ultrahdr` + `open-ultrahdr-wasm`) for ISO 21496-1 encoding
+- **WebCodecs** + **mediabunny** for video export, hand-rolled ISO 21496-1 container assembly for Ultra HDR JPEG
 - **Zustand** + **Jotai** for state, **IndexedDB** (`idb-keyval`) for `FileSystemDirectoryHandle` persistence
 - **TailwindCSS v4** + **@pastel-palette/tailwindcss** theming, **next-themes** for light/dark
 - **Vitest** + **@testing-library/react** for unit / component tests
@@ -117,19 +122,19 @@ The gainmap moves luminance only — hue and saturation come entirely from the L
 
 ```
 src/
-├─ app/          React shell — Layout, Preview, Transport, Inspector, ExportPanel
-├─ gpu/          WebGPU lifecycle, capability detection, pipelines, WGSL shaders
-├─ decode/       <video> + requestVideoFrameCallback wrapper
-├─ color/        D-Log M OETF, .cube parser, 3D LUT textures, color math
-├─ fs/           File System Access — clip scanner, LUT loader, handle persistence
-├─ export/       Offscreen render + Ultra HDR JPEG / SDR JPEG writers
-├─ state/        Zustand stores — clips, edit, gpu, prefs, layout, toast
-├─ components/   UI primitives
+├─ features/     Domain modules — clips, timeline, preview, grade, edit,
+│                deliver, preferences, shortcuts, theme
+├─ lib/          Core engines
+│  ├─ gpu/       WebGPU lifecycle, capability detection, pipelines, WGSL shaders
+│  ├─ decode/    <video> + requestVideoFrameCallback wrapper
+│  ├─ color/     D-Log M OETF, .cube parser, 3D LUT textures, color math
+│  ├─ fs/        File System Access — clip scanner, LUT loader, handle persistence
+│  └─ export/    Offscreen render + Ultra HDR JPEG / SDR JPEG writers
+├─ components/   Layout shell + UI primitives
 ├─ pages/        File-based routes (vite-plugin-route-builder)
-└─ styles/       Tailwind + Pastel theme
+├─ styles/       Tailwind + Pastel theme
+└─ utils/        Shared helpers
 
-spikes/          GPUExternalTexture precision (A) and Ultra HDR round-trip (B) test apps
-docs/            Design spec + spike reports
 tests/           Vitest setup, fixtures (DJI .cube LUT, OETF value pairs)
 ```
 
@@ -144,9 +149,12 @@ tests/           Vitest setup, fixtures (DJI .cube LUT, OETF value pairs)
 | `pnpm typecheck`             | TypeScript only                       |
 | `pnpm lint` · `lint:fix`     | ESLint                                |
 | `pnpm format`                | Prettier                              |
-| `pnpm spike:a` · `spike:b`   | Run the validation spike apps         |
 
 ## Non-goals
 
 > [!NOTE]
-> Out of scope for MVP: batch export, video export, frame-accurate WebCodecs seeking, multi-LUT compare, real-time scopes, custom curve editors, HEIC / AVIF / 16-bit PNG export, and any browser beyond macOS Chrome.
+> Out of scope: batch export, multi-LUT compare, real-time scopes, custom curve editors, HEIC / AVIF / 16-bit PNG export, and any browser beyond macOS Chrome.
+
+## License
+
+[AGPL-3.0](LICENSE) © Innei
