@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { cn } from '~/lib/cn';
-import { useEditModeStore } from '~/features/edit/editModeStore';
-
 import { ContextExportAction } from '~/features/deliver/components/ContextExportAction';
 import { DeliverTab } from '~/features/deliver/components/DeliverTab';
+import { QuickExportBar } from '~/features/deliver/components/QuickExportBar';
+import { useEditModeStore } from '~/features/edit/editModeStore';
 import { GradeTab } from '~/features/grade/components/GradeTab';
+import { cn } from '~/lib/cn';
+
 import { InspectTab } from './InspectTab';
 
 type TabKey = 'inspect' | 'grade' | 'deliver';
@@ -43,13 +44,8 @@ export function EditRightPanel() {
 
   return (
     <div
+      className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)_auto]"
       data-testid="edit-right-panel"
-      className={cn(
-        'grid h-full min-h-0',
-        mode === 'edit'
-          ? 'grid-rows-[auto_minmax(0,1fr)]'
-          : 'grid-rows-[auto_minmax(0,1fr)_auto]',
-      )}
     >
       <div
         aria-label="Edit panel tabs"
@@ -91,11 +87,9 @@ export function EditRightPanel() {
         {active === 'grade' ? <GradeTab /> : null}
         {active === 'deliver' ? <DeliverTab /> : null}
       </div>
-      {mode === 'edit' ? null : (
-        <div className="min-h-0 border-t border-border">
-          <ContextExportAction />
-        </div>
-      )}
+      <div className="min-h-0 border-t border-border">
+        {mode === 'edit' ? <QuickExportBar /> : <ContextExportAction />}
+      </div>
     </div>
   );
 }

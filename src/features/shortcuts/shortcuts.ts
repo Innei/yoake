@@ -1,19 +1,19 @@
 import { useEffect } from 'react';
 
-import { parseCubeLut } from '~/lib/color/lutCube';
+import { useLayoutStore } from '~/components/layout/layoutStore';
 import { confirm } from '~/components/ui/modal';
-import { scanClips } from '~/lib/fs/clipScanner';
-import { readLut, scanLuts } from '~/lib/fs/lutLoader';
+import { toast } from '~/components/ui/toast/toastStore';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
+import { addPresetSegment } from '~/features/edit/addPresetSegment';
 import { useEditModeStore } from '~/features/edit/editModeStore';
 import { useEditStore } from '~/features/edit/editStore';
-import { useLayoutStore } from '~/components/layout/layoutStore';
-import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { toast } from '~/components/ui/toast/toastStore';
-import type { ClipMeta } from '~/types';
-
 import { toggleCutMode } from '~/features/edit/toggleCutMode';
+import { usePrefsStore } from '~/features/preferences/prefsStore';
+import { parseCubeLut } from '~/lib/color/lutCube';
+import { scanClips } from '~/lib/fs/clipScanner';
+import { readLut, scanLuts } from '~/lib/fs/lutLoader';
+import type { ClipMeta } from '~/types';
 
 export interface Shortcut {
   description: string;
@@ -65,6 +65,10 @@ export const SHORTCUTS: { items: Shortcut[]; section: string }[] = [
       },
       { keys: 'M', description: 'Add marker at current time (edit mode)' },
       { keys: 'S', description: 'Split at playhead or add a new segment (edit mode)' },
+      {
+        keys: ', / . / /',
+        description: 'New 10s segment before / around / after playhead (edit mode)',
+      },
       {
         keys: 'Delete',
         description: 'Delete selected marker or segment (edit mode)',
@@ -259,6 +263,15 @@ export function useGlobalShortcuts(opts: {
         if (editMode.mode !== 'edit') return;
         e.preventDefault();
         toggleCutMode();
+        return;
+      }
+
+      if (e.key === ',' || e.key === '.' || e.key === '/') {
+        if (editMode.mode !== 'edit') return;
+        e.preventDefault();
+        const anchor =
+          e.key === ',' ? 'before' : e.key === '.' ? 'center' : 'after';
+        addPresetSegment(anchor, 10);
         return;
       }
 

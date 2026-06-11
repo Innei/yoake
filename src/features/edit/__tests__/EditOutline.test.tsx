@@ -243,6 +243,35 @@ describe('EditOutline', () => {
     );
   });
 
+  it('creates a preset segment from the segments header menu', () => {
+    useClipsStore.setState({
+      clips: [makeClip('clip-1', 'A.MP4')],
+      selectedClipId: 'clip-1',
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [],
+          segments: [],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: true,
+        },
+      },
+    });
+    useEditModeStore.setState({ mode: 'edit' });
+    useEditStore.setState({ currentTime: 30, duration: 60 });
+    vi.spyOn(useClipDataStore.getState(), 'load').mockResolvedValue(undefined);
+
+    const { getByTestId } = render(<EditOutline />);
+    fireEvent.click(getByTestId('segment-preset-trigger'));
+    fireEvent.click(getByTestId('segment-preset-center-10'));
+
+    const segs = useClipDataStore.getState().entries['clip-1']!.segments;
+    expect(segs).toHaveLength(1);
+    expect(segs[0]).toMatchObject({ in: 25, out: 35 });
+  });
+
   it('toggles section collapse on header click', () => {
     useClipsStore.setState({
       clips: [makeClip('clip-1', 'A.MP4')],

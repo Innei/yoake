@@ -3,6 +3,8 @@ import { useClipsStore } from '~/features/clips/clipsStore';
 import { useEditModeStore } from '~/features/edit/editModeStore';
 import { useEditStore } from '~/features/edit/editStore';
 
+import { clampSegmentRange } from './segmentRange';
+
 const DEFAULT_NEW_SEGMENT_HALF_SECS = 2.5;
 
 export function toggleCutMode(): void {
@@ -36,24 +38,15 @@ export function toggleCutMode(): void {
     return;
   }
 
-  const maxOut = duration > 0 ? duration : currentTime + DEFAULT_NEW_SEGMENT_HALF_SECS * 2;
-  const lo = Math.max(0, currentTime - DEFAULT_NEW_SEGMENT_HALF_SECS);
-  const hi = Math.min(maxOut, currentTime + DEFAULT_NEW_SEGMENT_HALF_SECS);
-  if (!(hi > lo)) return;
+  const range = clampSegmentRange(
+    currentTime - DEFAULT_NEW_SEGMENT_HALF_SECS,
+    currentTime + DEFAULT_NEW_SEGMENT_HALF_SECS,
+    duration,
+    entry.segments,
+  );
+  if (!range) return;
 
-  const sorted = [...entry.segments].sort((a, b) => a.in - b.in);
-  let inSec = lo;
-  let outSec = hi;
-  for (const seg of sorted) {
-    if (seg.out <= inSec) continue;
-    if (seg.in >= outSec) break;
-    if (seg.in <= inSec && seg.out >= outSec) return;
-    if (inSec < seg.in && outSec > seg.in) outSec = seg.in;
-    if (outSec > seg.out && inSec < seg.out) inSec = seg.out;
-    if (!(outSec > inSec)) return;
-  }
-
-  const id = useClipDataStore.getState().addSegment(clipId, inSec, outSec);
+  const id = useClipDataStore.getState().addSegment(clipId, range.in, range.out);
   if (!id) return;
   editMode.enterCutMode(id);
 }

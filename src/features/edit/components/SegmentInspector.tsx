@@ -3,15 +3,18 @@ import { useState } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { Panel, PanelHeader, PanelSection } from '~/components/ui/panel';
-import type { SegmentPlayMode } from '~/lib/fs/clipSidecar';
-import { cn } from '~/lib/cn';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useEditModeStore } from '~/features/edit/editModeStore';
 import { useEditStore } from '~/features/edit/editStore';
+import { cn } from '~/lib/cn';
+import type { SegmentPlayMode } from '~/lib/fs/clipSidecar';
 
-import { SegmentGradeOverrideToggle } from './SegmentGradeOverrideToggle';
+import type { PresetAnchor } from '../addPresetSegment';
+import { applyPresetRange } from '../addPresetSegment';
 import { formatTimecode, parseTimecode } from '../timecode';
+import { SegmentGradeOverrideToggle } from './SegmentGradeOverrideToggle';
+import { SegmentPresetGrid } from './SegmentPresetMenu';
 
 const PLAY_MODES: readonly { label: string; value: SegmentPlayMode }[] = [
   { value: 'normal', label: 'Normal' },
@@ -103,6 +106,9 @@ export function SegmentInspector() {
       onSpeedChange={(speed) => setSegmentSpeed(clipId, segment.id, speed)}
       onSplit={() => splitAtTime(clipId, useEditStore.getState().currentTime)}
       onUpdate={(patch) => updateSegment(clipId, segment.id, patch)}
+      onApplyPreset={(anchor, secs) =>
+        applyPresetRange(clipId, segment.id, anchor, secs)
+      }
       onDelete={() => {
         removeSegment(clipId, segment.id);
         clearSelection();
@@ -123,6 +129,7 @@ export function SegmentInspector() {
 
 interface BodyProps {
   clipId: string;
+  onApplyPreset: (anchor: PresetAnchor, durationSec: number) => void;
   onClearSelection: () => void;
   onDelete: () => void;
   onFreezeDurationChange: (secs: number) => void;
@@ -150,6 +157,7 @@ function SegmentInspectorBody({
   segSpeed,
   segFreezeDuration,
   overrideActive,
+  onApplyPreset,
   onUpdate,
   onPlayModeChange,
   onSpeedChange,
@@ -292,6 +300,10 @@ function SegmentInspectorBody({
             {formatTimecode(duration)}
           </span>
         </div>
+        <SegmentPresetGrid
+          testIdPrefix="segment-range-preset"
+          onPick={onApplyPreset}
+        />
       </PanelSection>
 
       <div className="border-t border-border" />

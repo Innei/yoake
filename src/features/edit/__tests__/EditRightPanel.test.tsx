@@ -12,6 +12,10 @@ vi.mock('~/features/deliver/components/ContextExportAction', () => ({
   ContextExportAction: () => <div data-testid="context-export-mock" />,
 }));
 
+vi.mock('~/features/deliver/components/QuickExportBar', () => ({
+  QuickExportBar: () => <div data-testid="quick-export-bar-mock" />,
+}));
+
 vi.mock('../components/MarkerContextPanel', () => ({
   MarkerContextPanel: ({ id }: { id: string }) => (
     <div data-id={id} data-testid="marker-context-panel-mock" />
@@ -91,6 +95,19 @@ describe('EditRightPanel', () => {
       'true',
     );
     expect(getByTestId('marker-context-panel-mock')).toBeTruthy();
+  });
+
+  it('shows the quick export bar in edit mode', () => {
+    useEditModeStore.setState({ mode: 'edit' });
+    const { getByTestId, queryByTestId } = render(<EditRightPanel />);
+    expect(getByTestId('quick-export-bar-mock')).toBeTruthy();
+    expect(queryByTestId('context-export-mock')).toBeNull();
+  });
+
+  it('shows the frame export action in view mode', () => {
+    const { getByTestId, queryByTestId } = render(<EditRightPanel />);
+    expect(getByTestId('context-export-mock')).toBeTruthy();
+    expect(queryByTestId('quick-export-bar-mock')).toBeNull();
   });
 
   it('Arrow keys cycle the active tab when the nav is focused', () => {

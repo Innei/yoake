@@ -3,7 +3,6 @@ import { useCallback, useMemo } from 'react';
 
 import { Button } from '~/components/ui/button';
 import { Panel, PanelHeader, PanelSection } from '~/components/ui/panel';
-import { cn } from '~/lib/cn';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import type {
@@ -17,12 +16,13 @@ import type {
 import { useDeliverStore } from '~/features/deliver/deliverStore';
 import { useExportStatusStore } from '~/features/deliver/exportStatusStore';
 import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { toast } from '~/components/ui/toast/toastStore';
+import { cn } from '~/lib/cn';
 
-import { DeliverContainerPicker } from './DeliverContainerPicker';
-import { DeliverExportProgress } from './DeliverExportProgress';
+import { pickExportDir } from '../pickExportDir';
 import { useExport } from '../useExport';
 import { useFrameExtract } from '../useFrameExtract';
+import { DeliverContainerPicker } from './DeliverContainerPicker';
+import { DeliverExportProgress } from './DeliverExportProgress';
 
 const UNSUPPORTED_COLORSPACE_HINT =
   'HDR (Rec.2020) export is not supported in this build.';
@@ -112,32 +112,6 @@ function computeFilenames(
     );
   }
   return [`${basename}_edit.${ext}`];
-}
-
-async function pickExportDir(
-  setHandle: (handle: FileSystemDirectoryHandle) => Promise<void>,
-): Promise<void> {
-  const picker = (
-    window as unknown as {
-      showDirectoryPicker?: (opts?: {
-        mode?: 'read' | 'readwrite';
-      }) => Promise<FileSystemDirectoryHandle>;
-    }
-  ).showDirectoryPicker;
-  if (!picker) {
-    toast.error('Folder picker unavailable', {
-      description: 'This browser does not support showDirectoryPicker.',
-    });
-    return;
-  }
-  try {
-    const handle = await picker({ mode: 'readwrite' });
-    await setHandle(handle);
-  } catch (cause) {
-    if (cause instanceof DOMException && cause.name === 'AbortError') return;
-    const message = cause instanceof Error ? cause.message : String(cause);
-    toast.error("Couldn't choose folder", { description: message });
-  }
 }
 
 export function DeliverTab() {

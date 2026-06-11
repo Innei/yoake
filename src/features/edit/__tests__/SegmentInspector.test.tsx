@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Segment } from '~/lib/fs/clipSidecar';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useEditModeStore } from '~/features/edit/editModeStore';
 import { useEditStore } from '~/features/edit/editStore';
+import type { Segment } from '~/lib/fs/clipSidecar';
 
 import { SegmentInspector } from '../components/SegmentInspector';
 
@@ -56,6 +56,19 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+});
+
+describe('SegmentInspector range presets', () => {
+  it('re-anchors the segment from the Range preset menu', () => {
+    seed(makeSegment());
+    useEditStore.setState({ currentTime: 30, duration: 60 });
+
+    const { getByTestId } = render(<SegmentInspector />);
+    fireEvent.click(getByTestId('segment-range-preset-center-10'));
+
+    const seg = useClipDataStore.getState().entries['clip-1']!.segments[0]!;
+    expect(seg).toMatchObject({ id: 'seg-1', in: 25, out: 35 });
+  });
 });
 
 describe('SegmentInspector', () => {

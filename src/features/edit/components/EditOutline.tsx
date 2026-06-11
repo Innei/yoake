@@ -2,17 +2,18 @@ import { ChevronDown, ChevronRight, Plus, Scissors, Star } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Button } from '~/components/ui/button';
-import type { Segment, SegmentPlayMode } from '~/lib/fs/clipSidecar';
-import { requestPermission } from '~/lib/fs/handleStore';
-import { cn } from '~/lib/cn';
+import { toast } from '~/components/ui/toast/toastStore';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useEditModeStore } from '~/features/edit/editModeStore';
 import { useEditStore } from '~/features/edit/editStore';
 import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { toast } from '~/components/ui/toast/toastStore';
+import { cn } from '~/lib/cn';
+import type { Segment, SegmentPlayMode } from '~/lib/fs/clipSidecar';
+import { requestPermission } from '~/lib/fs/handleStore';
 
 import { MarkerRow } from './MarkerRow';
+import { SegmentPresetMenu } from './SegmentPresetMenu';
 
 function pad(n: number, w = 2): string {
   return n.toString().padStart(w, '0');
@@ -120,6 +121,7 @@ export function EditOutline() {
           data-testid="outline-segments-section"
         >
           <SectionHeader
+            action={<SegmentPresetMenu />}
             collapsed={segmentsCollapsed}
             count={segments.length}
             icon={<Scissors aria-hidden className="size-3.5" />}
@@ -218,6 +220,7 @@ export function EditOutline() {
 }
 
 interface SectionHeaderProps {
+  action?: React.ReactNode;
   collapsed: boolean;
   count: number;
   icon: React.ReactNode;
@@ -227,6 +230,7 @@ interface SectionHeaderProps {
 }
 
 function SectionHeader({
+  action,
   collapsed,
   count,
   icon,
@@ -235,14 +239,14 @@ function SectionHeader({
   testId,
 }: SectionHeaderProps) {
   return (
-    <button
-      aria-expanded={!collapsed}
-      className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-fill/40"
-      data-testid={testId}
-      type="button"
-      onClick={onToggle}
-    >
-      <div className="flex min-w-0 items-center gap-1.5">
+    <div className="flex w-full items-center gap-2 pr-3 transition-colors hover:bg-fill/40">
+      <button
+        aria-expanded={!collapsed}
+        className="flex min-w-0 flex-1 items-center gap-1.5 px-3 py-2 text-left"
+        data-testid={testId}
+        type="button"
+        onClick={onToggle}
+      >
         {collapsed ? (
           <ChevronRight aria-hidden className="size-3.5 text-text-tertiary" />
         ) : (
@@ -254,11 +258,12 @@ function SectionHeader({
         <h3 className="text-[11px] font-medium uppercase tracking-wider text-text-tertiary">
           {label}
         </h3>
-      </div>
+      </button>
+      {action}
       <span className="rounded-sm bg-fill px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-text-secondary">
         {count}
       </span>
-    </button>
+    </div>
   );
 }
 
