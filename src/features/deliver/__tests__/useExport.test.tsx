@@ -1,15 +1,17 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useToastStore } from '~/components/ui/toast/toastStore';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useDeliverStore } from '~/features/deliver/deliverStore';
-import { useEditStore } from '~/features/edit/editStore';
 import { useExportStatusStore } from '~/features/deliver/exportStatusStore';
-import { useGpuStore } from '~/features/preview/gpuStore';
+import { useEditModeStore } from '~/features/edit/editModeStore';
+import { useEditStore } from '~/features/edit/editStore';
 import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { useToastStore } from '~/components/ui/toast/toastStore';
+import { useGpuStore } from '~/features/preview/gpuStore';
 
+import type { ExportScope } from '../exportScope';
 import { useExport } from '../useExport';
 
 const encodeGradedMock = vi.fn();
@@ -81,8 +83,14 @@ function makeStreamFrameSource(): StreamFrameSourceMock {
   };
 }
 
-function Probe({ onReady }: { onReady: (cb: () => Promise<void>) => void }) {
-  const cb = useExport();
+function Probe({
+  onReady,
+  scope,
+}: {
+  onReady: (cb: () => Promise<void>) => void;
+  scope?: ExportScope;
+}) {
+  const cb = useExport(scope);
   onReady(cb);
   return null;
 }
@@ -232,6 +240,11 @@ function resetAll() {
     bakeSpeed: true,
     bakeGrade: true,
     outputMode: 'single',
+  });
+  useEditModeStore.setState({
+    mode: 'view',
+    outlineSelection: { kind: 'none' },
+    cutMode: { active: false },
   });
   useToastStore.setState({ toasts: [] });
   useExportStatusStore.setState({ status: { kind: 'idle' } });
@@ -873,6 +886,82 @@ describe('useExport', () => {
     expect(success!.description).toBe(
       'DJI_0001_seg01.mp4, DJI_0001_seg02.mp4',
     );
+  });
+
+  it('exports only the selected segment when scoped to the selection', async () => {
+    installGpuReady();
+    const dir = makeDirHandle('Exports');
+    usePrefsStore.setState({
+      exportDirHandle: dir as unknown as FileSystemDirectoryHandle,
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [],
+          segments: [
+            { id: 'b', in: 3, out: 4, playMode: 'normal', speed: 1 },
+            { id: 'a', in: 0, out: 1, playMode: 'normal', speed: 1 },
+          ],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: false,
+        },
+      },
+    });
+    useEditModeStore.setState({
+      outlineSelection: { kind: 'segment', id: 'b' },
+    });
+
+    let cb: (() => Promise<void>) | undefined;
+    render(<Probe scope="selection" onReady={(c) => { cb = c; }} />);
+    await act(async () => { await cb!(); });
+
+    expect(encodeGradedMock).toHaveBeenCalledTimes(1);
+    const args = encodeGradedMock.mock.calls[0]![0] as {
+      segments: { id: string }[];
+    };
+    expect(args.segments.map((s) => s.id)).toEqual(['b']);
+    expect(dir.getFileHandle).toHaveBeenCalledWith('DJI_0001_seg02.mp4', {
+      create: true,
+    });
+  });
+
+  it('falls back to the whole edit when the selection scope has no match', async () => {
+    installGpuReady();
+    const dir = makeDirHandle('Exports');
+    usePrefsStore.setState({
+      exportDirHandle: dir as unknown as FileSystemDirectoryHandle,
+    });
+    useClipDataStore.setState({
+      entries: {
+        'clip-1': {
+          markers: [],
+          segments: [
+            { id: 'b', in: 3, out: 4, playMode: 'normal', speed: 1 },
+            { id: 'a', in: 0, out: 1, playMode: 'normal', speed: 1 },
+          ],
+          baseGrade: {},
+          status: 'idle',
+          readOnly: false,
+        },
+      },
+    });
+    useEditModeStore.setState({
+      outlineSelection: { kind: 'segment', id: 'missing' },
+    });
+
+    let cb: (() => Promise<void>) | undefined;
+    render(<Probe scope="selection" onReady={(c) => { cb = c; }} />);
+    await act(async () => { await cb!(); });
+
+    expect(encodeGradedMock).toHaveBeenCalledTimes(1);
+    const args = encodeGradedMock.mock.calls[0]![0] as {
+      segments: { id: string }[];
+    };
+    expect(args.segments.map((s) => s.id)).toEqual(['a', 'b']);
+    expect(dir.getFileHandle).toHaveBeenCalledWith('DJI_0001_edit.mp4', {
+      create: true,
+    });
   });
 
   it('rejects a second export while one is running', async () => {

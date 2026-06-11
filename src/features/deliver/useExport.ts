@@ -1,5 +1,17 @@
 import { useCallback } from 'react';
 
+import { toast } from '~/components/ui/toast/toastStore';
+import { useClipDataStore } from '~/features/clips/clipDataStore';
+import { useClipsStore } from '~/features/clips/clipsStore';
+import type { DeliverResolution } from '~/features/deliver/deliverStore';
+import { useDeliverStore } from '~/features/deliver/deliverStore';
+import type { ExportScope } from '~/features/deliver/exportScope';
+import { resolveSelectedSegment } from '~/features/deliver/exportScope';
+import { useExportStatusStore } from '~/features/deliver/exportStatusStore';
+import { useEditModeStore } from '~/features/edit/editModeStore';
+import { useEditStore } from '~/features/edit/editStore';
+import { usePrefsStore } from '~/features/preferences/prefsStore';
+import { useGpuStore } from '~/features/preview/gpuStore';
 import { createExportVideoSource } from '~/lib/export/encoder/exportVideoSource';
 import { grabFrame } from '~/lib/export/encoder/grabFrame';
 import {
@@ -12,15 +24,6 @@ import { grabFrameStream } from '~/lib/export/encoder/webcodecs/grabFrameStream'
 import type { StreamFrameSource } from '~/lib/export/encoder/webcodecs/streamFrameSource';
 import { createStreamFrameSource } from '~/lib/export/encoder/webcodecs/streamFrameSource';
 import type { GradeState, Segment } from '~/lib/fs/clipSidecar';
-import { useClipDataStore } from '~/features/clips/clipDataStore';
-import { useClipsStore } from '~/features/clips/clipsStore';
-import type { DeliverResolution } from '~/features/deliver/deliverStore';
-import { useDeliverStore } from '~/features/deliver/deliverStore';
-import { useEditStore } from '~/features/edit/editStore';
-import { useExportStatusStore } from '~/features/deliver/exportStatusStore';
-import { useGpuStore } from '~/features/preview/gpuStore';
-import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { toast } from '~/components/ui/toast/toastStore';
 
 export type ExportHandler = () => Promise<void>;
 
@@ -58,6 +61,10 @@ interface ExportJob {
   segments: readonly Segment[];
 }
 
+function segmentFilename(basename: string, index: number): string {
+  return `${basename}_seg${(index + 1).toString().padStart(2, '0')}.mp4`;
+}
+
 function buildExportJobs(
   basename: string,
   segments: readonly Segment[],
@@ -67,7 +74,7 @@ function buildExportJobs(
   if (outputMode === 'multi' && sorted.length > 0) {
     return sorted.map((segment, i) => ({
       segments: [segment],
-      filename: `${basename}_seg${(i + 1).toString().padStart(2, '0')}.mp4`,
+      filename: segmentFilename(basename, i),
     }));
   }
   return [{ segments: sorted, filename: `${basename}_edit.mp4` }];
@@ -122,7 +129,7 @@ function formatProgress(progress: EncodeProgress): string {
   return 'Preparing…';
 }
 
-export function useExport(): ExportHandler {
+export function useExport(scope: ExportScope = 'edit'): ExportHandler {
   return useCallback(async () => {
     if (exportInFlight) return;
     const { clips, selectedClipId } = useClipsStore.getState();
@@ -160,13 +167,28 @@ export function useExport(): ExportHandler {
     const codec = container === 'mp4-h265' ? 'hevc' : 'avc';
 
     const basename = stripExt(clip.name);
-    const jobs = buildExportJobs(basename, segments, outputMode);
+    const selected =
+      scope === 'selection'
+        ? resolveSelectedSegment(
+            segments,
+            useEditModeStore.getState().outlineSelection,
+          )
+        : undefined;
+    const exportSegments = selected ? [selected.segment] : segments;
+    const jobs = selected
+      ? [
+          {
+            segments: exportSegments,
+            filename: segmentFilename(basename, selected.index),
+          },
+        ]
+      : buildExportJobs(basename, segments, outputMode);
     const useDirect = canUseDirectExport({
       bakeGrade,
       bakeSpeed,
       bakeTrim,
       resolution,
-      segments,
+      segments: exportSegments,
     });
 
     if (!useDirect && !(fps > 0)) {
@@ -368,5 +390,5 @@ export function useExport(): ExportHandler {
       exportVideoSource?.dispose();
       await streamFrameSource?.dispose().catch(() => undefined);
     }
-  }, []);
+  }, [scope]);
 }

@@ -1,9 +1,11 @@
 import { cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useDeliverStore } from '~/features/deliver/deliverStore';
 import { useExportStatusStore } from '~/features/deliver/exportStatusStore';
+import { useEditModeStore } from '~/features/edit/editModeStore';
 import { usePrefsStore } from '~/features/preferences/prefsStore';
 
 import { QuickExportBar } from '../components/QuickExportBar';
@@ -42,7 +44,40 @@ beforeEach(() => {
     resolution: 'source',
     quality: 'high',
   });
+  useClipDataStore.setState({
+    entries: {
+      'clip-1': {
+        markers: [],
+        segments: [],
+        baseGrade: {},
+        status: 'idle',
+        readOnly: false,
+      },
+    },
+  });
+  useEditModeStore.setState({
+    mode: 'edit',
+    outlineSelection: { kind: 'none' },
+    cutMode: { active: false },
+  });
 });
+
+function setSegments() {
+  useClipDataStore.setState({
+    entries: {
+      'clip-1': {
+        markers: [],
+        segments: [
+          { id: 'b', in: 63, out: 69.8, playMode: 'normal', speed: 1 },
+          { id: 'a', in: 4.2, out: 9.8, playMode: 'normal', speed: 1 },
+        ],
+        baseGrade: {},
+        status: 'idle',
+        readOnly: false,
+      },
+    },
+  });
+}
 
 afterEach(() => {
   cleanup();
@@ -53,6 +88,41 @@ describe('QuickExportBar', () => {
     const { getByTestId } = render(<QuickExportBar />);
     expect(getByTestId('quick-export-summary').textContent).toBe(
       'H.264 · Source · High → exports',
+    );
+  });
+
+  it('shows a full-clip scope when the clip has no segments', () => {
+    const { getByTestId } = render(<QuickExportBar />);
+    expect(getByTestId('quick-export-scope').textContent).toBe('Full clip');
+  });
+
+  it('shows the edit scope with the segment count when nothing is selected', () => {
+    setSegments();
+    const { getByTestId } = render(<QuickExportBar />);
+    expect(getByTestId('quick-export-scope').textContent).toBe(
+      'Edit · 2 segments',
+    );
+  });
+
+  it('shows the selected segment scope with its time range', () => {
+    setSegments();
+    useEditModeStore.setState({
+      outlineSelection: { kind: 'segment', id: 'b' },
+    });
+    const { getByTestId } = render(<QuickExportBar />);
+    expect(getByTestId('quick-export-scope').textContent).toBe(
+      'Segment 2 · 01:03.0–01:09.8',
+    );
+  });
+
+  it('falls back to the edit scope when the selected segment is gone', () => {
+    setSegments();
+    useEditModeStore.setState({
+      outlineSelection: { kind: 'segment', id: 'missing' },
+    });
+    const { getByTestId } = render(<QuickExportBar />);
+    expect(getByTestId('quick-export-scope').textContent).toBe(
+      'Edit · 2 segments',
     );
   });
 
