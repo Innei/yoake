@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 
+import { toast } from '~/components/ui/toast/toastStore';
+import { useClipsStore } from '~/features/clips/clipsStore';
+import { createGradeActions } from '~/features/grade/clipGradeActions';
+import { usePrefsStore } from '~/features/preferences/prefsStore';
 import type {
   GradeState,
   Marker,
@@ -13,11 +17,6 @@ import {
   validateSegments,
   writeSidecar,
 } from '~/lib/fs/clipSidecar';
-import { useClipsStore } from '~/features/clips/clipsStore';
-import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { toast } from '~/components/ui/toast/toastStore';
-
-import { createGradeActions } from '~/features/grade/clipGradeActions';
 
 export type ClipEntryStatus = 'idle' | 'loading' | 'writing' | 'error';
 
@@ -191,6 +190,9 @@ function enqueueWrite(clipId: string): void {
       }
     });
   writeChains.set(clipId, nextChain);
+  // the chain stays rejected on purpose so later writes see the failure;
+  // attach a detached consumer so it never surfaces as an unhandled rejection
+  void nextChain.catch(() => undefined);
 }
 
 function findContainingSegment(

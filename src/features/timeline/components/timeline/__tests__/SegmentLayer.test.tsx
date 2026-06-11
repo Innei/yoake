@@ -1,11 +1,11 @@
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { Segment } from '~/lib/fs/clipSidecar';
 import { useClipDataStore } from '~/features/clips/clipDataStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useEditModeStore } from '~/features/edit/editModeStore';
 import { useEditStore } from '~/features/edit/editStore';
+import type { Segment } from '~/lib/fs/clipSidecar';
 
 import { SegmentLayer } from '../SegmentLayer';
 import { TimelineTestProvider } from './testHelpers';
@@ -60,6 +60,9 @@ function mockRect(el: HTMLElement, width = 200, left = 0): void {
 }
 
 beforeEach(() => {
+  // zustand setState copies spied actions onto a fresh state object, so
+  // restoreAllMocks cannot reach them — clear call history explicitly
+  vi.clearAllMocks();
   useClipsStore.setState({
     clips: [],
     selectedClipId: undefined,

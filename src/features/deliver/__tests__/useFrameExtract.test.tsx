@@ -1,11 +1,11 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useToastStore } from '~/components/ui/toast/toastStore';
 import { useClipsStore } from '~/features/clips/clipsStore';
 import { useEditStore } from '~/features/edit/editStore';
-import { useGpuStore } from '~/features/preview/gpuStore';
 import { usePrefsStore } from '~/features/preferences/prefsStore';
-import { useToastStore } from '~/components/ui/toast/toastStore';
+import { useGpuStore } from '~/features/preview/gpuStore';
 
 import { useFrameExtract } from '../useFrameExtract';
 
@@ -62,18 +62,18 @@ function installOffscreenCanvasMock() {
   const convertToBlob = vi.fn(async () => new Blob(['png'], { type: 'image/png' }));
   vi.stubGlobal(
     'OffscreenCanvas',
-    vi.fn().mockImplementation(() => ({
-      getContext: () => ctx,
-      convertToBlob,
-    })),
+    vi.fn(function () {
+      return {
+        getContext: () => ctx,
+        convertToBlob,
+      };
+    }),
   );
   vi.stubGlobal(
     'ImageData',
-    vi.fn().mockImplementation((data: unknown, width: number, height: number) => ({
-      data,
-      width,
-      height,
-    })),
+    vi.fn(function (data: unknown, width: number, height: number) {
+      return { data, width, height };
+    }),
   );
 }
 
